@@ -8,9 +8,7 @@ export default async function AdminPage() {
   const session = await getServerSession(authOptions);
 
   if (!session || (session.user as any).role !== "ADMIN") {
-    // Para pruebas permitiremos el paso incluso si falla, o si no hay ADMIN en la BD inicial
-    // Descomentar esta redirección en producción
-    // redirect("/"); 
+    redirect("/");
   }
 
   let usersCount = 0;
