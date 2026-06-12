@@ -36,8 +36,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [activeView, setActiveView] = useState<"map" | "list">("map");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Ajustes de visualización (persisten en localStorage)
-  const [zoomThreshold, setZoomThreshold] = useState(13);
+  // Ajustes de visualización (persisten en la base de datos de usuario)
+  const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 13);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Estadísticas
@@ -72,12 +72,12 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   useEffect(() => {
     fetchFilterOptions();
     
-    // Cargar preferencia de Zoom de localStorage
+    // Cargar preferencia de Zoom de localStorage como fallback
     const savedThreshold = localStorage.getItem("cto_zoom_threshold");
-    if (savedThreshold) {
+    if (savedThreshold && !initialMapState?.zoomThreshold) {
       setZoomThreshold(parseInt(savedThreshold));
     }
-  }, [fetchFilterOptions]);
+  }, [fetchFilterOptions, initialMapState]);
 
   // Cargar estadísticas
   const fetchStats = async () => {
@@ -99,9 +99,18 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     setShowStatsModal(true);
   };
 
-  const handleZoomThresholdChange = (val: number) => {
+  const handleZoomThresholdChange = async (val: number) => {
     setZoomThreshold(val);
     localStorage.setItem("cto_zoom_threshold", String(val));
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zoomThreshold: val })
+      });
+    } catch (err) {
+      console.error("Error guardando zoomThreshold en BD:", err);
+    }
   };
 
   // Contar cuántos filtros avanzados están aplicados

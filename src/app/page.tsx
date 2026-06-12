@@ -28,14 +28,15 @@ export default async function Home() {
     // Obtener última vista del mapa guardada para el usuario
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { lastLat: true, lastLng: true, lastZoom: true }
+      select: { lastLat: true, lastLng: true, lastZoom: true, zoomThreshold: true }
     });
 
-    if (user && user.lastLat !== null && user.lastLng !== null && user.lastZoom !== null) {
+    if (user) {
       userMapState = {
-        lat: user.lastLat,
-        lng: user.lastLng,
-        zoom: user.lastZoom
+        lat: user.lastLat !== null ? user.lastLat : 36.425,
+        lng: user.lastLng !== null ? user.lastLng : -5.144,
+        zoom: user.lastZoom !== null ? user.lastZoom : 14,
+        zoomThreshold: user.zoomThreshold || 13
       };
     }
   } catch (e) {

@@ -20,6 +20,7 @@ model User {
   lastLat       Float?
   lastLng       Float?
   lastZoom      Int?
+  zoomThreshold Int       @default(13)
   assignedCTOs  CTO[]     @relation("AssignedTo")
   comments      Comment[]
   history       History[]

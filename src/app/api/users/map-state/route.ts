@@ -10,26 +10,29 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { lat, lng, zoom } = await req.json();
-
-    if (lat === undefined || lng === undefined || zoom === undefined) {
-      return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
-    }
-
+    const body = await req.json();
+    const { lat, lng, zoom, zoomThreshold } = body;
     const userId = (session.user as any).id;
+
+    const updateData: any = {};
+
+    if (lat !== undefined) updateData.lastLat = parseFloat(lat);
+    if (lng !== undefined) updateData.lastLng = parseFloat(lng);
+    if (zoom !== undefined) updateData.lastZoom = parseInt(zoom);
+    if (zoomThreshold !== undefined) updateData.zoomThreshold = parseInt(zoomThreshold);
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: "No se proporcionaron datos para actualizar" }, { status: 400 });
+    }
 
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        lastLat: parseFloat(lat),
-        lastLng: parseFloat(lng),
-        lastZoom: parseInt(zoom),
-      },
+      data: updateData,
     });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error guardando estado del mapa:", error);
+    console.error("Error guardando ajustes de usuario:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
