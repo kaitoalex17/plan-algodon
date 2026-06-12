@@ -1,66 +1,40 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import MapWrapper from "@/components/MapWrapper";
+import { prisma } from "@/lib/prisma";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  // Si no hay BD conectada, esto fallará, así que lo envolvemos en un try/catch
+  let ctos = [];
+  try {
+    ctos = await prisma.cTO.findMany({
+      include: {
+        assignedTo: true,
+        subStatus: true,
+      }
+    });
+  } catch (e) {
+    console.error("Error connecting to DB", e);
+    // Mock data temporal si la BD falla
+    ctos = [
+      { id: '1', num: '1001', lat: 36.425, lng: -5.144, status: 'PENDIENTE', municipio: 'Estepona' },
+      { id: '2', num: '1002', lat: 36.428, lng: -5.140, status: 'CORRECTO', municipio: 'Estepona' }
+    ];
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main>
+      <ClientPageWrapper initialCtos={ctos} />
+    </main>
   );
 }
+
+// Client component wrapper to handle states
+import ClientPageWrapper from "./ClientPageWrapper";

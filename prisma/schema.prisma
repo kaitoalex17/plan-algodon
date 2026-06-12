@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("USER") // ADMIN or USER
+  color         String    @default("#000000")
+  assignedCTOs  CTO[]     @relation("AssignedTo")
+  comments      Comment[]
+  history       History[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model CTO {
+  id             String    @id @default(cuid())
+  num            String    // This maps to "Número" in the Excel
+  numeroNuevo    String?   // "NumeroNuevo"
+  coordenadas    String    // Original string "lat, lng"
+  lat            Float
+  lng            Float
+  municipio      String?
+  colocacion     String?
+  fechaAgregacion DateTime?
+  notas          String?
+
+  status         String    @default("PENDIENTE") // PENDIENTE, CORRECTO, FALLO
+  subStatusId    String?
+  subStatus      SubStatus? @relation(fields: [subStatusId], references: [id])
+
+  assignedToId   String?
+  assignedTo     User?     @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  comments       Comment[]
+  images         Image[]
+  history        History[]
+  alerts         Alert[]
+}
+
+model SubStatus {
+  id    String @id @default(cuid())
+  name  String
+  color String @default("#808080")
+  ctos  CTO[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  createdAt DateTime @default(now())
+  ctoId     String
+  cto       CTO      @relation(fields: [ctoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  url       String
+  ctoId     String
+  cto       CTO      @relation(fields: [ctoId], references: [id], onDelete: Cascade)
+}
+
+model History {
+  id        String   @id @default(cuid())
+  action    String
+  timestamp DateTime @default(now())
+  location  String?  // Where it was modified (e.g. coordinates or IP)
+  ctoId     String
+  cto       CTO      @relation(fields: [ctoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  message   String
+  createdAt DateTime @default(now())
+  ctoId     String
+  cto       CTO      @relation(fields: [ctoId], references: [id], onDelete: Cascade)
+}
