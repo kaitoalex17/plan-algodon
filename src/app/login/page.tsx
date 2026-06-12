@@ -27,7 +27,7 @@ export default function LoginPage() {
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6' }}>
       <form onSubmit={handleSubmit} className="glass-panel" style={{ padding: '2rem', width: '90%', maxWidth: '400px', background: 'white' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827' }}>CTO Tracker</h1>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827' }}>Plan Algodon Auditoria</h1>
           <p style={{ color: '#4b5563', fontSize: '0.95rem', marginTop: '0.5rem' }}>Acceso al sistema</p>
         </div>
         

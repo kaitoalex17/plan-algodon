@@ -6,8 +6,8 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CTO Tracker",
-  description: "Gestión de CTOs interactiva en mapa",
+  title: "Plan Algodon Auditoria",
+  description: "Gestión y auditoría de recursos en mapa",
 };
 
 export default function RootLayout({
