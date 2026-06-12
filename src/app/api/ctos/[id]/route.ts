@@ -54,7 +54,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const body = await req.json();
-    const { status, subStatusId, assignedToId, notas, commentText } = body;
+    const { 
+      status, subStatusId, assignedToId, notas, commentText,
+      num, numeroNuevo, lat, lng, municipio, colocacion 
+    } = body;
     const userId = (session.user as any).id;
 
     // Obtener estado anterior para el historial
@@ -100,6 +103,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       historyActions.push("Actualizó las notas generales");
     }
 
+    // Campos de administrador adicionales
+    if (num !== undefined && num !== oldCto.num) {
+      updateData.num = String(num);
+      historyActions.push(`Modificó el número de CTO a "${num}"`);
+    }
+    if (numeroNuevo !== undefined && numeroNuevo !== oldCto.numeroNuevo) {
+      updateData.numeroNuevo = numeroNuevo ? String(numeroNuevo) : null;
+      historyActions.push(`Modificó el número nuevo a "${numeroNuevo || 'N/A'}"`);
+    }
+    if (lat !== undefined && lat !== oldCto.lat) {
+      updateData.lat = parseFloat(lat);
+      historyActions.push(`Modificó latitud a ${lat}`);
+    }
+    if (lng !== undefined && lng !== oldCto.lng) {
+      updateData.lng = parseFloat(lng);
+      historyActions.push(`Modificó longitud a ${lng}`);
+    }
+    if (lat !== undefined || lng !== undefined) {
+      updateData.coordenadas = `${updateData.lat ?? oldCto.lat}, ${updateData.lng ?? oldCto.lng}`;
+    }
+    if (municipio !== undefined && municipio !== oldCto.municipio) {
+      updateData.municipio = municipio ? String(municipio) : null;
+      historyActions.push(`Modificó municipio a "${municipio || 'N/A'}"`);
+    }
+    if (colocacion !== undefined && colocacion !== oldCto.colocacion) {
+      updateData.colocacion = colocacion ? String(colocacion) : null;
+      historyActions.push(`Modificó colocación a "${colocacion || 'N/A'}"`);
+    }
+
     // Actualizar CTO en la BD
     const updatedCto = await prisma.cTO.update({
       where: { id: params.id },
@@ -132,6 +164,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json(updatedCto);
   } catch (error: any) {
     console.error("Error actualizando CTO:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// DELETE: Eliminar una CTO individual por un administrador
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || (session.user as any).role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    await prisma.cTO.delete({
+      where: { id: params.id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error eliminando CTO:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -43,6 +43,9 @@ export default async function AdminPage() {
           <Link href="/admin/import" className="btn btn-primary" style={{ justifyContent: 'center', padding: '1rem' }}>
             Importar CTOs desde Excel
           </Link>
+          <Link href="/admin/ctos" className="btn" style={{ background: '#e2e8f0', color: '#111827', justifyContent: 'center', padding: '1rem' }}>
+            Gestionar y Editar CTOs (Listado Masivo)
+          </Link>
           <Link href="/admin/users" className="btn" style={{ background: '#e2e8f0', color: '#111827', justifyContent: 'center', padding: '1rem' }}>
             Gestionar Usuarios
           </Link>
