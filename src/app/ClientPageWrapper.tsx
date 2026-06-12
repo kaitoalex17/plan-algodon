@@ -5,7 +5,7 @@ import MapWrapper from "@/components/MapWrapper";
 import CtoDrawer from "@/components/CtoDrawer";
 import { signOut } from "next-auth/react";
 
-export default function ClientPageWrapper({ initialCtos }: { initialCtos: any[] }) {
+export default function ClientPageWrapper({ initialCtos, initialMapState }: { initialCtos: any[]; initialMapState: any }) {
   const [selectedCto, setSelectedCto] = useState<any>(null);
   const [ctos, setCtos] = useState(initialCtos);
   const [activeView, setActiveView] = useState<"map" | "list">("map");
@@ -122,6 +122,7 @@ export default function ClientPageWrapper({ initialCtos }: { initialCtos: any[] 
           <MapWrapper 
             ctos={filteredCtos} // El mapa también se filtra en tiempo real
             onCtoClick={(cto: any) => setSelectedCto(cto)} 
+            initialMapState={initialMapState}
           />
         </div>
 

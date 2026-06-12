@@ -17,6 +17,9 @@ model User {
   password      String?
   role          String    @default("USER") // ADMIN or USER
   color         String    @default("#000000")
+  lastLat       Float?
+  lastLng       Float?
+  lastZoom      Int?
   assignedCTOs  CTO[]     @relation("AssignedTo")
   comments      Comment[]
   history       History[]
