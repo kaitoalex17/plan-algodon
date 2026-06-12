@@ -79,7 +79,6 @@ function MapStateAndTracking({
 
     const onLocationError = (e: any) => {
       console.warn("Error de GPS:", e.message);
-      // No apagamos el botón automáticamente para que el usuario sepa que falló
     };
 
     map.on("locationfound", onLocationFound);
@@ -96,7 +95,7 @@ function MapStateAndTracking({
 }
 
 // Marcadores de las CTOs en el mapa
-function CtoMarkers({ ctos, onCtoClick }: { ctos: any[], onCtoClick: (cto: any) => void }) {
+function CtoMarkers({ ctos, onCtoClick, zoomThreshold }: { ctos: any[], onCtoClick: (cto: any) => void, zoomThreshold: number }) {
   const map = useMap();
   const [bounds, setBounds] = useState<any>(null);
   const [zoom, setZoom] = useState<number>(map.getZoom());
@@ -109,14 +108,11 @@ function CtoMarkers({ ctos, onCtoClick }: { ctos: any[], onCtoClick: (cto: any) 
     moveend: () => setBounds(map.getBounds()),
     zoomend: () => setZoom(map.getZoom())
   });
-
-  // Límite de zoom configurable para no sobrecargar el mapa
-  const ZOOM_THRESHOLD = 13; 
   
-  if (zoom < ZOOM_THRESHOLD) {
+  if (zoom < zoomThreshold) {
     return (
       <div style={{ position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 1000, background: "rgba(255,255,255,0.95)", padding: "8px 20px", borderRadius: "20px", fontSize: "14px", fontWeight: 600, boxShadow: "0 2px 10px rgba(0,0,0,0.1)", border: "1px solid #FF790040" }}>
-        Acércate para ver las CTOs
+        Acércate para ver las CTOs (Zoom {zoom} / {zoomThreshold})
       </div>
     );
   }
@@ -169,7 +165,7 @@ function GpsControls({
   return (
     <div style={{ position: "absolute", bottom: "20px", right: "20px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
       
-      {/* Botón centrar en mi posición (solo visible si estamos rastreando y tenemos ubicación) */}
+      {/* Botón centrar en mi posición */}
       {isTracking && userLocation && (
         <button 
           onClick={centerOnUser}
@@ -222,13 +218,16 @@ function GpsControls({
 export default function Map({ 
   ctos, 
   onCtoClick,
-  initialMapState 
+  initialMapState,
+  zoomThreshold = 13
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void,
-  initialMapState?: any 
+  initialMapState?: any,
+  zoomThreshold?: number
 }) {
-  const [tileUrl, setTileUrl] = useState("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
+  // Google Maps Normal por defecto: vt/lyrs=m
+  const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
   
   // Estados de Geolocalización
   const [isTracking, setIsTracking] = useState(false);
@@ -237,17 +236,18 @@ export default function Map({
   return (
     <MapContainer 
       center={[initialMapState?.lat || 36.425, initialMapState?.lng || -5.144]} 
-      zoom={initialMapState?.zoom || 14} 
+      zoom={[initialMapState?.zoom || 14]} 
       className="map-container" 
       zoomControl={false}
     >
       <TileLayer url={tileUrl} />
       
-      {/* Selector de tipo de mapa */}
+      {/* Selector de tipo de mapa (Google Maps Normal / Google Maps Satélite / OpenStreetMap) */}
       <div style={{ position: "absolute", top: "80px", right: "10px", zIndex: 1000, background: "white", padding: "12px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" }}>
         <select onChange={(e) => setTileUrl(e.target.value)} style={{ border: "none", background: "transparent", outline: "none", fontWeight: 700, color: "#111827", fontSize: "1rem" }}>
-          <option value="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png">Mapa Normal</option>
-          <option value="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}">Satélite</option>
+          <option value="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}">Google Maps Normal</option>
+          <option value="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}">Google Maps Satélite</option>
+          <option value="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png">OpenStreetMap</option>
         </select>
       </div>
 
@@ -270,7 +270,7 @@ export default function Map({
       )}
 
       {/* Marcadores de CTOs */}
-      <CtoMarkers ctos={ctos} onCtoClick={onCtoClick} />
+      <CtoMarkers ctos={ctos} onCtoClick={onCtoClick} zoomThreshold={zoomThreshold} />
 
       {/* Lógica de estado y rastreador en el mapa */}
       <MapStateAndTracking 

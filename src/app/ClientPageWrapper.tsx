@@ -3,16 +3,47 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import MapWrapper from "@/components/MapWrapper";
 import CtoDrawer from "@/components/CtoDrawer";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 type SubStatus = { id: string; name: string; color: string };
 type User = { id: string; name: string; email: string };
 
+type StatDay = {
+  date: string;
+  total: number;
+  technicians: {
+    [key: string]: {
+      name: string;
+      email: string;
+      color: string;
+      count: number;
+    };
+  };
+};
+
+type TechStat = {
+  name: string;
+  color: string;
+  total: number;
+};
+
 export default function ClientPageWrapper({ initialCtos, initialMapState }: { initialCtos: any[]; initialMapState: any }) {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "ADMIN";
+
   const [selectedCto, setSelectedCto] = useState<any>(null);
   const [ctos, setCtos] = useState(initialCtos);
   const [activeView, setActiveView] = useState<"map" | "list">("map");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Ajustes de visualización (persisten en localStorage)
+  const [zoomThreshold, setZoomThreshold] = useState(13);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Estadísticas
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsData, setStatsData] = useState<{ stats: StatDay[]; totalByTech: TechStat[] }>({ stats: [], totalByTech: [] });
 
   // Estados de filtros avanzados
   const [filterStatus, setFilterStatus] = useState("");
@@ -24,7 +55,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [subStatuses, setSubStatuses] = useState<SubStatus[]>([]);
   const [users, setUsers] = useState<User[]>([]);
 
-  // Cargar opciones para los filtros
+  // Cargar opciones para los filtros y ajustes guardados
   const fetchFilterOptions = useCallback(async () => {
     try {
       const [resSub, resUsers] = await Promise.all([
@@ -40,7 +71,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
   useEffect(() => {
     fetchFilterOptions();
+    
+    // Cargar preferencia de Zoom de localStorage
+    const savedThreshold = localStorage.getItem("cto_zoom_threshold");
+    if (savedThreshold) {
+      setZoomThreshold(parseInt(savedThreshold));
+    }
   }, [fetchFilterOptions]);
+
+  // Cargar estadísticas
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const res = await fetch("/api/stats");
+      if (res.ok) {
+        setStatsData(await res.json());
+      }
+    } catch (e) {
+      console.error("Error cargando estadísticas:", e);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const openStats = () => {
+    fetchStats();
+    setShowStatsModal(true);
+  };
+
+  const handleZoomThresholdChange = (val: number) => {
+    setZoomThreshold(val);
+    localStorage.setItem("cto_zoom_threshold", String(val));
+  };
 
   // Contar cuántos filtros avanzados están aplicados
   const activeFiltersCount = useMemo(() => {
@@ -117,13 +179,15 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             <span style={{ color: "#FF7900" }}>●</span> Plan Algodon
           </h1>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button 
-              onClick={() => window.location.href = "/admin"} 
-              className="btn" 
-              style={{ padding: "6px 12px", fontSize: "0.85rem", background: "#f3f4f6", color: "#111827", minHeight: "36px", fontWeight: 600 }}
-            >
-              Admin
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={() => window.location.href = "/admin"} 
+                className="btn" 
+                style={{ padding: "6px 12px", fontSize: "0.85rem", background: "#f3f4f6", color: "#111827", minHeight: "36px", fontWeight: 600 }}
+              >
+                Admin
+              </button>
+            )}
             <button 
               onClick={() => signOut()} 
               className="btn" 
@@ -134,13 +198,13 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
           </div>
         </div>
 
-        {/* Fila 2: Buscador + Botón Filtros */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+        {/* Fila 2: Buscador + Botón Filtros + Stats + Ajustes */}
+        <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
               type="text"
               className="input-field"
-              placeholder="🔍 Buscar por número o municipio..."
+              placeholder="🔍 Buscar..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ 
@@ -164,10 +228,12 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             )}
           </div>
           
+          {/* Botón Filtros */}
           <button
             onClick={() => setShowFilters(!showFilters)}
+            title="Filtros avanzados"
             style={{
-              padding: "0 12px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid #cbd5e1",
+              padding: "0 10px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid #cbd5e1",
               background: showFilters || activeFiltersCount > 0 ? "#FF7900" : "white",
               color: showFilters || activeFiltersCount > 0 ? "white" : "#475569",
               cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", minHeight: "44px",
@@ -176,9 +242,35 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
           >
             🎛️ {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}
           </button>
+
+          {/* Botón Estadísticas */}
+          <button
+            onClick={openStats}
+            title="Estadísticas de auditoría"
+            style={{
+              padding: "0 10px", borderRadius: "8px", border: "1.5px solid #cbd5e1",
+              background: "white", color: "#475569",
+              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
+            }}
+          >
+            📊
+          </button>
+
+          {/* Botón Ajustes */}
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            title="Ajustes de mapa"
+            style={{
+              padding: "0 10px", borderRadius: "8px", border: "1.5px solid #cbd5e1",
+              background: "white", color: "#475569",
+              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
+            }}
+          >
+            ⚙️
+          </button>
         </div>
 
-        {/* Fila Opcional: Sección desplegable de filtros avanzados (Mobile-first) */}
+        {/* Fila Opcional: Sección desplegable de filtros avanzados */}
         {showFilters && (
           <div style={{
             background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", 
@@ -289,6 +381,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             ctos={filteredCtos} // El mapa se filtra en tiempo real
             onCtoClick={(cto: any) => setSelectedCto(cto)} 
             initialMapState={initialMapState}
+            zoomThreshold={zoomThreshold}
           />
         </div>
 
@@ -320,8 +413,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                       className="glass-panel"
                       style={{
                         display: "flex", alignItems: "center", justifyItems: "center", padding: "14px 16px", cursor: "pointer",
-                        background: "white", borderLeft: `6px solid ${statusColor}`, minHeight: "60px",
-                        active: { background: "#f8fafc" }
+                        background: "white", borderLeft: `6px solid ${statusColor}`, minHeight: "60px"
                       }}
                     >
                       <div style={{ flex: 1 }}>
@@ -357,6 +449,130 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         )}
 
       </div>
+
+      {/* MODAL DE AJUSTES (Visualización de CTOs) */}
+      {showSettingsModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div className="glass-panel" style={{ width: "90%", maxWidth: "450px", padding: "2rem", background: "white" }}>
+            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "#111827" }}>⚙️ Ajustes de Visualización</h2>
+            
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "#374151" }}>
+                Límite de Zoom para mostrar CTOs:
+              </label>
+              
+              <select
+                className="input-field"
+                value={zoomThreshold}
+                onChange={(e) => handleZoomThresholdChange(parseInt(e.target.value))}
+                style={{ padding: "8px 12px", minHeight: "44px" }}
+              >
+                <option value="11">Zoom 11: Mostrar todo de lejos (Lento en móviles antiguos)</option>
+                <option value="12">Zoom 12: Mostrar temprano</option>
+                <option value="13">Zoom 13: Normal / Recomendado</option>
+                <option value="14">Zoom 14: Mostrar tarde</option>
+                <option value="15">Zoom 15: Mostrar solo muy de cerca (Más rápido)</option>
+              </select>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "6px", lineHeight: 1.4 }}>
+                Un nivel de zoom más bajo te permite ver más CTOs a la vez, pero puede ralentizar el rendimiento del mapa en tu dispositivo móvil.
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setShowSettingsModal(false)}
+              className="btn btn-primary"
+              style={{ width: "100%" }}
+            >
+              Guardar Ajustes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ESTADÍSTICAS */}
+      {showStatsModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "550px", padding: "2rem", background: "white", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#111827", margin: 0 }}>📊 Estadísticas de Auditoría</h2>
+              <button 
+                onClick={() => setShowStatsModal(false)}
+                style={{ background: "none", border: "none", fontSize: "1.5rem", color: "#94a3b8", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {statsLoading ? (
+              <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Calculando estadísticas...</div>
+            ) : (
+              <div>
+                {/* 1. Vista de Administrador: Resumen de técnicos */}
+                {isAdmin && statsData.totalByTech && statsData.totalByTech.length > 0 && (
+                  <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569", marginBottom: "0.75rem", textTransform: "uppercase" }}>Total por Técnico (Últimos 15 días)</h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {statsData.totalByTech.map((tech, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                            <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: tech.color }} />
+                            {tech.name}
+                          </span>
+                          <strong style={{ background: "#e2e8f0", padding: "2px 8px", borderRadius: "12px" }}>{tech.total} CTOs</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Historial de Auditoría Diario */}
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569", marginBottom: "0.75rem", textTransform: "uppercase" }}>
+                  {isAdmin ? "Historial Diario del Equipo" : "Mis CTOs Auditadas por Día"}
+                </h3>
+
+                {statsData.stats.length === 0 ? (
+                  <p style={{ color: "#94a3b8", fontStyle: "italic", textAlign: "center", padding: "2rem" }}>No se registran auditorías en los últimos 15 días.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {statsData.stats.map((day, idx) => (
+                      <div key={idx} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "0.95rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px", marginBottom: "6px" }}>
+                          <span style={{ color: "#1e293b" }}>📅 {day.date}</span>
+                          <span style={{ color: "#FF7900" }}>{day.total} CTOs</span>
+                        </div>
+
+                        {/* Breakdown por técnico si es admin */}
+                        {isAdmin ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "12px" }}>
+                            {Object.values(day.technicians).map((tech: any, i) => (
+                              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "#475569" }}>
+                                <span>{tech.name}</span>
+                                <strong>{tech.count} auditadas</strong>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0, paddingLeft: "12px" }}>
+                            Has auditado {day.total} CTOs en esta fecha.
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button 
+              onClick={() => setShowStatsModal(false)}
+              className="btn"
+              style={{ width: "100%", background: "#cbd5e1", color: "#334155", marginTop: "1.5rem" }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Drawer inferior para detalles de CTO */}
       <CtoDrawer 
