@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Instalar dependencias del sistema necesarias para Prisma en Alpine
+RUN apk add --no-cache libc6-compat openssl
+
 # Instalar dependencias
 COPY package.json package-lock.json* ./
 RUN npm install
