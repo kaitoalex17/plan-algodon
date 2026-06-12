@@ -59,7 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json();
     const { 
       status, subStatusId, assignedToId, notas, commentText,
-      num, numeroNuevo, lat, lng, municipio, colocacion 
+      num, numeroNuevo, lat, lng, municipio, colocacion,
+      puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto
     } = body;
     const userId = (session.user as any).id;
 
@@ -104,6 +105,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (notas !== undefined && notas !== oldCto.notas) {
       updateData.notas = notas;
       historyActions.push("Actualizó las notas generales");
+    }
+
+    // Datos específicos de auditoría de fibra
+    if (puertosTotal !== undefined && puertosTotal !== oldCto.puertosTotal) {
+      updateData.puertosTotal = puertosTotal !== null ? parseInt(puertosTotal) : null;
+      historyActions.push(`Puertos totales: ${puertosTotal}`);
+    }
+    if (puertosOcupados !== undefined && puertosOcupados !== oldCto.puertosOcupados) {
+      updateData.puertosOcupados = puertosOcupados !== null ? parseInt(puertosOcupados) : null;
+      historyActions.push(`Puertos ocupados: ${puertosOcupados}`);
+    }
+    if (potenciaDbm !== undefined && potenciaDbm !== oldCto.potenciaDbm) {
+      updateData.potenciaDbm = potenciaDbm !== null ? parseFloat(potenciaDbm) : null;
+      historyActions.push(`Potencia óptica: ${potenciaDbm} dBm`);
+    }
+    if (cierreSeguridad !== undefined && cierreSeguridad !== oldCto.cierreSeguridad) {
+      updateData.cierreSeguridad = cierreSeguridad;
+      historyActions.push(`Cierre de seguridad: ${cierreSeguridad ? 'Correcto' : 'Incorrecto'}`);
+    }
+    if (etiquetadoCorrecto !== undefined && etiquetadoCorrecto !== oldCto.etiquetadoCorrecto) {
+      updateData.etiquetadoCorrecto = etiquetadoCorrecto;
+      historyActions.push(`Etiquetado correcto: ${etiquetadoCorrecto ? 'Sí' : 'No'}`);
     }
 
     // Campos de administrador adicionales

@@ -38,7 +38,32 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
   // Ajustes de visualización (persisten en la base de datos de usuario)
   const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 13);
+  const [theme, setTheme] = useState(initialMapState?.theme || "orange");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  useEffect(() => {
+    // Eliminar temas anteriores
+    document.body.classList.forEach(className => {
+      if (className.startsWith("theme-")) {
+        document.body.classList.remove(className);
+      }
+    });
+    // Añadir el nuevo tema
+    document.body.classList.add(`theme-${theme}`);
+  }, [theme]);
+
+  const handleThemeChange = async (val: string) => {
+    setTheme(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: val })
+      });
+    } catch (err) {
+      console.error("Error guardando tema en BD:", err);
+    }
+  };
 
   // Estadísticas
   const [showStatsModal, setShowStatsModal] = useState(false);
@@ -177,22 +202,22 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   }, [filteredCtos]);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", background: "#f3f4f6" }}>
+    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)" }}>
       
       {/* Cabecera Principal y Barra de Búsqueda (Fija arriba) */}
-      <div style={{ background: "white", borderBottom: "1px solid #e5e7eb", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", zIndex: 10, padding: "12px 16px" }}>
+      <div style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", zIndex: 10, padding: "12px 16px" }}>
         
         {/* Fila 1: Logo y Acciones */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h1 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "#111827", display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ color: "#FF7900" }}>●</span> Plan Algodon
+          <h1 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodon
           </h1>
           <div style={{ display: "flex", gap: "8px" }}>
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
                 className="btn" 
-                style={{ padding: "6px 12px", fontSize: "0.85rem", background: "#f3f4f6", color: "#111827", minHeight: "36px", fontWeight: 600 }}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", background: "var(--bg-color)", color: "var(--text-color)", minHeight: "36px", fontWeight: 600 }}
               >
                 Admin
               </button>
@@ -220,8 +245,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 padding: "10px 40px 10px 14px", 
                 fontSize: "0.95rem", 
                 minHeight: "44px", 
-                background: "#f8fafc",
-                border: "1.5px solid #cbd5e1"
+                background: "var(--card-bg)",
+                border: "1.5px solid var(--border-color)",
+                color: "var(--text-color)"
               }}
             />
             {searchQuery && (
@@ -242,9 +268,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onClick={() => setShowFilters(!showFilters)}
             title="Filtros avanzados"
             style={{
-              padding: "0 10px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid #cbd5e1",
-              background: showFilters || activeFiltersCount > 0 ? "#FF7900" : "white",
-              color: showFilters || activeFiltersCount > 0 ? "white" : "#475569",
+              padding: "0 10px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              background: showFilters || activeFiltersCount > 0 ? "var(--primary-color)" : "var(--card-bg)",
+              color: showFilters || activeFiltersCount > 0 ? "white" : "var(--text-color)",
               cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", minHeight: "44px",
               transition: "all 0.2s"
             }}
@@ -257,8 +283,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onClick={openStats}
             title="Estadísticas de auditoría"
             style={{
-              padding: "0 10px", borderRadius: "8px", border: "1.5px solid #cbd5e1",
-              background: "white", color: "#475569",
+              padding: "0 10px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              background: "var(--card-bg)", color: "var(--text-color)",
               cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
             }}
           >
@@ -270,8 +296,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onClick={() => setShowSettingsModal(true)}
             title="Ajustes de mapa"
             style={{
-              padding: "0 10px", borderRadius: "8px", border: "1.5px solid #cbd5e1",
-              background: "white", color: "#475569",
+              padding: "0 10px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              background: "var(--card-bg)", color: "var(--text-color)",
               cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
             }}
           >
@@ -282,18 +308,18 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         {/* Fila Opcional: Sección desplegable de filtros avanzados */}
         {showFilters && (
           <div style={{
-            background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", 
+            background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)", 
             marginBottom: "12px", display: "flex", flexDirection: "column", gap: "8px"
           }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               {/* Selector de Estado */}
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Estado</label>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Estado</label>
                 <select 
                   className="input-field" 
                   value={filterStatus} 
                   onChange={e => setFilterStatus(e.target.value)}
-                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 >
                   <option value="">Todos</option>
                   <option value="PENDIENTE">PENDIENTE</option>
@@ -304,12 +330,12 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
               {/* Selector de Subestado */}
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Subestado</label>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Subestado</label>
                 <select 
                   className="input-field" 
                   value={filterSubStatus} 
                   onChange={e => setFilterSubStatus(e.target.value)}
-                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 >
                   <option value="">Todos</option>
                   <option value="none">Sin subestado</option>
@@ -322,12 +348,12 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
             {/* Selector de Técnico */}
             <div>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Asignado a</label>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Asignado a</label>
               <select 
                 className="input-field" 
                 value={filterAssigned} 
                 onChange={e => setFilterAssigned(e.target.value)}
-                style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+                style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
               >
                 <option value="">Todos los técnicos</option>
                 <option value="unassigned">Sin asignar</option>
@@ -354,13 +380,13 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         )}
 
         {/* Fila 3: Selector de Vista (Mapa vs Lista) - Diseño Premium Táctil */}
-        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "4px" }}>
+        <div style={{ display: "flex", background: "var(--bg-color)", borderRadius: "10px", padding: "4px" }}>
           <button
             onClick={() => setActiveView("map")}
             style={{
               flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
-              background: activeView === "map" ? "#FF7900" : "transparent",
-              color: activeView === "map" ? "white" : "#475569",
+              background: activeView === "map" ? "var(--primary-color)" : "transparent",
+              color: activeView === "map" ? "white" : "var(--text-color)",
               transition: "all 0.2s"
             }}
           >
@@ -370,8 +396,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onClick={() => setActiveView("list")}
             style={{
               flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
-              background: activeView === "list" ? "#FF7900" : "transparent",
-              color: activeView === "list" ? "white" : "#475569",
+              background: activeView === "list" ? "var(--primary-color)" : "transparent",
+              color: activeView === "list" ? "white" : "var(--text-color)",
               transition: "all 0.2s"
             }}
           >
@@ -413,46 +439,46 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   </div>
                 )}
 
-                {visibleListCtos.map((cto) => {
-                  const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
-                  
-                  return (
-                    <div
-                      key={cto.id}
-                      onClick={() => setSelectedCto(cto)}
-                      className="glass-panel"
-                      style={{
-                        display: "flex", alignItems: "center", justifyItems: "center", padding: "14px 16px", cursor: "pointer",
-                        background: "white", borderLeft: `6px solid ${statusColor}`, minHeight: "60px"
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>
-                            CTO {cto.num}
-                          </span>
-                          {cto.numeroNuevo && (
-                            <span style={{ fontSize: "0.8rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px" }}>
-                              Nuevo: {cto.numeroNuevo}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "4px" }}>
-                          {cto.municipio || "Sin municipio"} • {cto.colocacion || "Ubicación N/A"}
-                        </div>
-                      </div>
-
-                      {/* Badge de Estado */}
-                      <span style={{
-                        padding: "4px 10px", borderRadius: "12px", fontSize: "0.8rem", fontWeight: 700,
-                        background: cto.status === "CORRECTO" ? "#d1fae5" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
-                        color: cto.status === "CORRECTO" ? "#065f46" : cto.status === "FALLO" ? "#991b1b" : "#374151"
-                      }}>
-                        {cto.subStatus?.name || cto.status}
-                      </span>
-                    </div>
-                  );
-                })}
+                 {visibleListCtos.map((cto) => {
+                   const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
+                   
+                   return (
+                     <div
+                       key={cto.id}
+                       onClick={() => setSelectedCto(cto)}
+                       className="glass-panel"
+                       style={{
+                         display: "flex", alignItems: "center", justifyItems: "center", padding: "14px 16px", cursor: "pointer",
+                         background: "var(--card-bg)", borderLeft: `6px solid ${statusColor}`, minHeight: "60px", borderColor: "var(--border-color)"
+                       }}
+                     >
+                       <div style={{ flex: 1 }}>
+                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                           <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-color)" }}>
+                             CTO {cto.num}
+                           </span>
+                           {cto.numeroNuevo && (
+                             <span style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8, background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
+                               Nuevo: {cto.numeroNuevo}
+                             </span>
+                           )}
+                         </div>
+                         <div style={{ fontSize: "0.85rem", color: "var(--text-color)", opacity: 0.7, marginTop: "4px" }}>
+                           {cto.municipio || "Sin municipio"} • {cto.colocacion || "Ubicación N/A"}
+                         </div>
+                       </div>
+ 
+                       {/* Badge de Estado */}
+                       <span style={{
+                         padding: "4px 10px", borderRadius: "12px", fontSize: "0.8rem", fontWeight: 700,
+                         background: cto.status === "CORRECTO" ? "#d1fae5" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
+                         color: cto.status === "CORRECTO" ? "#065f46" : cto.status === "FALLO" ? "#991b1b" : "#374151"
+                       }}>
+                         {cto.subStatus?.name || cto.status}
+                       </span>
+                     </div>
+                   );
+                 })}
               </div>
             )}
           </div>
@@ -460,14 +486,57 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
       </div>
 
-      {/* MODAL DE AJUSTES (Visualización de CTOs) */}
+      {/* MODAL DE AJUSTES (Visualización de CTOs y Temas) */}
       {showSettingsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div className="glass-panel" style={{ width: "90%", maxWidth: "450px", padding: "2rem", background: "white" }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "#111827" }}>⚙️ Ajustes de Visualización</h2>
+          <div className="glass-panel" style={{ width: "90%", maxWidth: "450px", padding: "2rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)" }}>
+            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "var(--text-color)" }}>⚙️ Ajustes</h2>
             
+            {/* Selector de Tema */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "#374151" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-color)" }}>
+                Tema de Color de la Página:
+              </label>
+              <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+                {[
+                  { name: "orange", color: "#FF7900", label: "Naranja" },
+                  { name: "blue", color: "#2563eb", label: "Azul" },
+                  { name: "green", color: "#10b981", label: "Verde" },
+                  { name: "purple", color: "#8b5cf6", label: "Morado" },
+                  { name: "dark", color: "#334155", label: "Oscuro" }
+                ].map((t) => (
+                  <button
+                    key={t.name}
+                    type="button"
+                    onClick={() => handleThemeChange(t.name)}
+                    style={{
+                      flex: "1 1 calc(33% - 6px)",
+                      minWidth: "70px",
+                      padding: "8px 4px",
+                      borderRadius: "8px",
+                      border: theme === t.name ? "3px solid var(--text-color)" : "1.5px solid var(--border-color)",
+                      background: t.name === "dark" ? "#1e293b" : "#ffffff",
+                      color: t.name === "dark" ? "#ffffff" : "#111827",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontWeight: 700,
+                      fontSize: "0.75rem",
+                      boxShadow: theme === t.name ? "0 0 8px rgba(0,0,0,0.15)" : "none",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", background: t.color, display: "inline-block" }} />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-color)" }}>
                 Límite de Zoom para mostrar CTOs:
               </label>
               
@@ -475,7 +544,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 className="input-field"
                 value={zoomThreshold}
                 onChange={(e) => handleZoomThresholdChange(parseInt(e.target.value))}
-                style={{ padding: "8px 12px", minHeight: "44px" }}
+                style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
               >
                 <option value="11">Zoom 11: Mostrar todo de lejos (Lento en móviles antiguos)</option>
                 <option value="12">Zoom 12: Mostrar temprano</option>
@@ -483,7 +552,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <option value="14">Zoom 14: Mostrar tarde</option>
                 <option value="15">Zoom 15: Mostrar solo muy de cerca (Más rápido)</option>
               </select>
-              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "6px", lineHeight: 1.4 }}>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.7, marginTop: "6px", lineHeight: 1.4 }}>
                 Un nivel de zoom más bajo te permite ver más CTOs a la vez, pero puede ralentizar el rendimiento del mapa en tu dispositivo móvil.
               </p>
             </div>
@@ -502,9 +571,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       {/* MODAL DE ESTADÍSTICAS */}
       {showStatsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div className="glass-panel" style={{ width: "95%", maxWidth: "550px", padding: "2rem", background: "white", maxHeight: "90vh", overflowY: "auto" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "550px", padding: "2rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-              <h2 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#111827", margin: 0 }}>📊 Estadísticas de Auditoría</h2>
+              <h2 style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-color)", margin: 0 }}>📊 Estadísticas de Auditoría</h2>
               <button 
                 onClick={() => setShowStatsModal(false)}
                 style={{ background: "none", border: "none", fontSize: "1.5rem", color: "#94a3b8", cursor: "pointer" }}
@@ -514,13 +583,13 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             </div>
 
             {statsLoading ? (
-              <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Calculando estadísticas...</div>
+              <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-color)", opacity: 0.8 }}>Calculando estadísticas...</div>
             ) : (
               <div>
                 {/* 1. Vista de Administrador: Resumen de técnicos */}
                 {isAdmin && statsData.totalByTech && statsData.totalByTech.length > 0 && (
-                  <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569", marginBottom: "0.75rem", textTransform: "uppercase" }}>Total por Técnico (Últimos 15 días)</h3>
+                  <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "var(--bg-color)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)", opacity: 0.8, marginBottom: "0.75rem", textTransform: "uppercase" }}>Total por Técnico (Últimos 15 días)</h3>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {statsData.totalByTech.map((tech, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}>
@@ -528,7 +597,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                             <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: tech.color }} />
                             {tech.name}
                           </span>
-                          <strong style={{ background: "#e2e8f0", padding: "2px 8px", borderRadius: "12px" }}>{tech.total} CTOs</strong>
+                          <strong style={{ background: "var(--border-color)", padding: "2px 8px", borderRadius: "12px" }}>{tech.total} CTOs</strong>
                         </div>
                       ))}
                     </div>
@@ -536,33 +605,33 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 )}
 
                 {/* 2. Historial de Auditoría Diario */}
-                <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569", marginBottom: "0.75rem", textTransform: "uppercase" }}>
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)", opacity: 0.8, marginBottom: "0.75rem", textTransform: "uppercase" }}>
                   {isAdmin ? "Historial Diario del Equipo" : "Mis CTOs Auditadas por Día"}
                 </h3>
 
                 {statsData.stats.length === 0 ? (
-                  <p style={{ color: "#94a3b8", fontStyle: "italic", textAlign: "center", padding: "2rem" }}>No se registran auditorías en los últimos 15 días.</p>
+                  <p style={{ color: "var(--text-color)", opacity: 0.7, fontStyle: "italic", textAlign: "center", padding: "2rem" }}>No se registran auditorías en los últimos 15 días.</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     {statsData.stats.map((day, idx) => (
-                      <div key={idx} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "0.95rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px", marginBottom: "6px" }}>
-                          <span style={{ color: "#1e293b" }}>📅 {day.date}</span>
-                          <span style={{ color: "#FF7900" }}>{day.total} CTOs</span>
+                      <div key={idx} style={{ border: "1px solid var(--border-color)", borderRadius: "8px", padding: "12px", background: "var(--bg-color)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "0.95rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px", marginBottom: "6px" }}>
+                          <span style={{ color: "var(--text-color)" }}>📅 {day.date}</span>
+                          <span style={{ color: "var(--primary-color)" }}>{day.total} CTOs</span>
                         </div>
 
                         {/* Breakdown por técnico si es admin */}
                         {isAdmin ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingLeft: "12px" }}>
                             {Object.values(day.technicians).map((tech: any, i) => (
-                              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "#475569" }}>
+                              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "var(--text-color)", opacity: 0.8 }}>
                                 <span>{tech.name}</span>
                                 <strong>{tech.count} auditadas</strong>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0, paddingLeft: "12px" }}>
+                          <p style={{ fontSize: "0.85rem", color: "var(--text-color)", opacity: 0.7, margin: 0, paddingLeft: "12px" }}>
                             Has auditado {day.total} CTOs en esta fecha.
                           </p>
                         )}
@@ -576,7 +645,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             <button 
               onClick={() => setShowStatsModal(false)}
               className="btn"
-              style={{ width: "100%", background: "#cbd5e1", color: "#334155", marginTop: "1.5rem" }}
+              style={{ width: "100%", background: "var(--border-color)", color: "var(--text-color)", marginTop: "1.5rem" }}
             >
               Cerrar
             </button>

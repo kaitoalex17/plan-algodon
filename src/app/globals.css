@@ -67,7 +67,7 @@ a {
   border-radius: 8px;
   font-size: 1rem;
   outline: none;
-  background: white;
+  background: var(--card-bg);
   color: var(--text-color);
   min-height: 48px;
 }
@@ -100,7 +100,7 @@ a {
   left: 0;
   width: 100%;
   max-height: 90vh;
-  background: white;
+  background: var(--card-bg);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
@@ -122,3 +122,46 @@ a {
   border-radius: 10px;
   margin: 0 auto 1.5rem auto;
 }
+
+/* Temas predeterminados a nivel de página */
+body.theme-orange {
+  --primary-color: #FF7900;
+  --bg-color: #f3f4f6;
+  --text-color: #111827;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
+}
+
+body.theme-blue {
+  --primary-color: #2563eb;
+  --bg-color: #f0f5ff;
+  --text-color: #1e293b;
+  --card-bg: #ffffff;
+  --border-color: #dbeafe;
+}
+
+body.theme-green {
+  --primary-color: #10b981;
+  --bg-color: #f0fdf4;
+  --text-color: #14532d;
+  --card-bg: #ffffff;
+  --border-color: #dcfce7;
+}
+
+body.theme-purple {
+  --primary-color: #8b5cf6;
+  --bg-color: #faf5ff;
+  --text-color: #3b0764;
+  --card-bg: #ffffff;
+  --border-color: #f3e8ff;
+}
+
+body.theme-dark {
+  --primary-color: #f97316;
+  --bg-color: #0f172a;
+  --text-color: #f8fafc;
+  --card-bg: #1e293b;
+  --border-color: #334155;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+

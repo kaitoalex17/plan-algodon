@@ -21,6 +21,7 @@ model User {
   lastLng       Float?
   lastZoom      Int?
   zoomThreshold Int       @default(13)
+  theme         String    @default("orange")
   assignedCTOs  CTO[]     @relation("AssignedTo")
   comments      Comment[]
   history       History[]
@@ -74,6 +75,13 @@ model CTO {
   colocacion     String?
   fechaAgregacion DateTime?
   notas          String?
+  
+  // Datos específicos de auditoría de fibra
+  puertosTotal      Int?      @default(16)
+  puertosOcupados   Int?      @default(0)
+  potenciaDbm       Float?
+  cierreSeguridad   Boolean?  @default(true)
+  etiquetadoCorrecto Boolean? @default(true)
 
   status         String    @default("PENDIENTE") // PENDIENTE, CORRECTO, FALLO
   subStatusId    String?

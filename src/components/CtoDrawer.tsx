@@ -27,6 +27,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [notas, setNotas] = useState("");
   const [commentText, setCommentText] = useState("");
   
+  // Nuevos campos de auditoría de fibra
+  const [puertosTotal, setPuertosTotal] = useState<number | string>(16);
+  const [puertosOcupados, setPuertosOcupados] = useState<number | string>(0);
+  const [potenciaDbm, setPotenciaDbm] = useState<number | string>("");
+  const [cierreSeguridad, setCierreSeguridad] = useState(true);
+  const [etiquetadoCorrecto, setEtiquetadoCorrecto] = useState(true);
+  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -44,6 +51,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setSubStatusId(data.subStatusId || "");
         setAssignedToId(data.assignedToId || "");
         setNotas(data.notas || "");
+        
+        // Cargar nuevos campos de fibra
+        setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 16);
+        setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
+        setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
+        setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
+        setEtiquetadoCorrecto(data.etiquetadoCorrecto !== null ? data.etiquetadoCorrecto : true);
       }
     } catch (e) {
       console.error(e);
@@ -60,7 +74,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         isAdmin ? fetch("/api/users") : Promise.resolve(null),
       ]);
       
-      if (resSub.ok) setSubStatuses(await resSub.ok ? await resSub.json() : []);
+      if (resSub.ok) setSubStatuses(await resSub.json());
       if (resUsers?.ok) setUsers(await resUsers.json());
     } catch (e) {
       console.error(e);
@@ -91,6 +105,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           assignedToId: assignedToId || null,
           notas,
           commentText,
+          puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
+          puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
+          potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
+          cierreSeguridad,
+          etiquetadoCorrecto,
         }),
       });
 
@@ -110,6 +129,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           assignedToId: assignedToId || null,
           assignedTo: assigned || null,
           notas,
+          puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
+          puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
+          potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
+          cierreSeguridad,
+          etiquetadoCorrecto,
         };
 
         onUpdate(fullUpdatedCto);
@@ -195,7 +219,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             
             {/* Ubicación y Enlaces */}
-            <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+            <div style={{ padding: "1rem", background: "var(--bg-color)", borderRadius: "10px", border: "1px solid var(--border-color)", color: "var(--text-color)" }}>
               <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Municipio:</strong> {cto.municipio || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Colocación:</strong> {cto.colocacion || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Coordenadas:</strong> {cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</p>
@@ -211,12 +235,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
             </div>
 
             {/* Formulario de Auditoría */}
-            <form onSubmit={handleSave} style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
+            <form onSubmit={handleSave} style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem" }}>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Auditar CTO</h3>
               
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "1rem" }}>
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Estado General</label>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Estado General</label>
                   <select 
                     className="input-field" 
                     value={status} 
@@ -224,7 +248,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       setStatus(e.target.value);
                       if (e.target.value === "PENDIENTE") setSubStatusId("");
                     }}
-                    style={{ padding: "8px 12px", minHeight: "44px" }}
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                   >
                     <option value="PENDIENTE">PENDIENTE</option>
                     <option value="CORRECTO">CORRECTO</option>
@@ -233,13 +257,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Subestado</label>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Subestado</label>
                   <select 
                     className="input-field" 
                     value={subStatusId} 
                     onChange={e => setSubStatusId(e.target.value)}
                     disabled={status === "PENDIENTE"}
-                    style={{ padding: "8px 12px", minHeight: "44px" }}
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                   >
                     <option value="">Ninguno</option>
                     {subStatuses.map(sub => (
@@ -249,14 +273,74 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
               </div>
 
+              {/* Nuevos Datos de Fibra */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    value={puertosTotal} 
+                    onChange={e => setPuertosTotal(e.target.value)}
+                    placeholder="16"
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    value={puertosOcupados} 
+                    onChange={e => setPuertosOcupados(e.target.value)}
+                    placeholder="0"
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="input-field" 
+                    value={potenciaDbm} 
+                    onChange={e => setPotenciaDbm(e.target.value)}
+                    placeholder="-19.5"
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                  />
+                </div>
+              </div>
+
+              {/* Checkboxes de Seguridad y Etiquetado */}
+              <div style={{ display: "flex", gap: "20px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={cierreSeguridad} 
+                    onChange={e => setCierreSeguridad(e.target.checked)}
+                    style={{ transform: "scale(1.25)", cursor: "pointer" }}
+                  />
+                  Cierre de Seguridad OK
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={etiquetadoCorrecto} 
+                    onChange={e => setEtiquetadoCorrecto(e.target.checked)}
+                    style={{ transform: "scale(1.25)", cursor: "pointer" }}
+                  />
+                  Etiquetado Correcto
+                </label>
+              </div>
+
               {isAdmin && (
                 <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Asignar Técnico</label>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Asignar Técnico</label>
                   <select 
                     className="input-field" 
                     value={assignedToId} 
                     onChange={e => setAssignedToId(e.target.value)}
-                    style={{ padding: "8px 12px", minHeight: "44px" }}
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                   >
                     <option value="">Sin asignar</option>
                     {users.map(u => (
@@ -267,19 +351,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               )}
 
               <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Notas Generales (Persistente)</label>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Notas Generales (Persistente)</label>
                 <textarea 
                   className="input-field" 
                   value={notas}
                   onChange={e => setNotas(e.target.value)}
                   placeholder="Notas internas sobre esta CTO..." 
-                  style={{ minHeight: "60px", padding: "8px 12px", resize: "vertical" }}
+                  style={{ minHeight: "60px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 />
               </div>
 
               {/* Subida de Fotos */}
               <div style={{ marginBottom: "1.5rem" }}>
-                <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Evidencias Fotográficas</label>
+                <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Evidencias Fotográficas</label>
                 <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px", marginBottom: "8px" }}>
                   {details?.images && details.images.length > 0 ? (
                     details.images.map((img: any) => (
@@ -288,16 +372,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         <img 
                           src={img.url} 
                           alt="Evidencia" 
-                          style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid #cbd5e1" }} 
+                          style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-color)" }} 
                         />
                       </a>
                     ))
                   ) : (
-                    <p style={{ color: "#94a3b8", fontSize: "0.85rem", fontStyle: "italic", margin: "10px 0" }}>No hay fotos registradas</p>
+                    <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.85rem", fontStyle: "italic", margin: "10px 0" }}>No hay fotos registradas</p>
                   )}
                 </div>
 
-                <label className="btn" style={{ background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", width: "100%", justifyContent: "center" }}>
+                <label className="btn" style={{ background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", width: "100%", justifyContent: "center" }}>
                   {uploading ? "Subiendo..." : "📸 Subir Nuevas Fotos"}
                   <input 
                     type="file" 
@@ -311,19 +395,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </div>
 
               {/* Escribir Comentario */}
-              <div style={{ borderTop: "1px dashed #e2e8f0", paddingTop: "1rem", marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Añadir Comentario rápido al Historial</label>
+              <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "1rem", marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Añadir Comentario rápido al Historial</label>
                 <textarea 
                   className="input-field" 
                   value={commentText}
                   onChange={e => setCommentText(e.target.value)}
                   placeholder="Escribe comentarios de la visita..." 
-                  style={{ minHeight: "50px", padding: "8px 12px", resize: "vertical" }}
+                  style={{ minHeight: "50px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 />
               </div>
 
               <div style={{ display: "flex", gap: "10px" }}>
-                <button type="button" onClick={onClose} className="btn" style={{ flex: 1, background: "#cbd5e1", color: "#334155" }}>
+                <button type="button" onClick={onClose} className="btn" style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)" }}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
@@ -334,16 +418,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
             {/* Muro de Comentarios */}
             {details?.comments && details.comments.length > 0 && (
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem", marginTop: "1rem" }}>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "#334155" }}>Comentarios anteriores</h4>
+              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem", marginTop: "1rem" }}>
+                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--text-color)" }}>Comentarios anteriores</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "200px", overflowY: "auto" }}>
                   {details.comments.map((comm: any) => (
-                    <div key={comm.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "#64748b", marginBottom: "4px" }}>
+                    <div key={comm.id} style={{ background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.7, marginBottom: "4px" }}>
                         <strong style={{ color: comm.user?.color || "inherit" }}>{comm.user?.name || "Técnico"}</strong>
                         <span>{new Date(comm.createdAt).toLocaleString()}</span>
                       </div>
-                      <p style={{ fontSize: "0.85rem", margin: 0, color: "#334155", whiteSpace: "pre-wrap" }}>{comm.text}</p>
+                      <p style={{ fontSize: "0.85rem", margin: 0, color: "var(--text-color)", whiteSpace: "pre-wrap" }}>{comm.text}</p>
                     </div>
                   ))}
                 </div>
@@ -352,11 +436,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
             {/* Historial de Cambios */}
             {details?.history && details.history.length > 0 && (
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem", marginTop: "1rem" }}>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "#334155" }}>Historial de auditoría</h4>
+              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem", marginTop: "1rem" }}>
+                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--text-color)" }}>Historial de auditoría</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
                   {details.history.map((hist: any) => (
-                    <div key={hist.id} style={{ fontSize: "0.75rem", color: "#64748b", display: "flex", justifyContent: "space-between", borderBottom: "1px dashed #f1f5f9", paddingBottom: "4px" }}>
+                    <div key={hist.id} style={{ fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.7, display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "4px" }}>
                       <span><strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}</span>
                       <span style={{ fontSize: "0.7rem", flexShrink: 0, marginLeft: "10px" }}>{new Date(hist.timestamp).toLocaleDateString()}</span>
                     </div>

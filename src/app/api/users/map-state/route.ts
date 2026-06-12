@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { lat, lng, zoom, zoomThreshold } = body;
+    const { lat, lng, zoom, zoomThreshold, theme } = body;
     const userId = (session.user as any).id;
 
     const updateData: any = {};
@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest) {
     if (lng !== undefined) updateData.lastLng = parseFloat(lng);
     if (zoom !== undefined) updateData.lastZoom = parseInt(zoom);
     if (zoomThreshold !== undefined) updateData.zoomThreshold = parseInt(zoomThreshold);
+    if (theme !== undefined) updateData.theme = String(theme);
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "No se proporcionaron datos para actualizar" }, { status: 400 });

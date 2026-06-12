@@ -41,6 +41,11 @@ export async function GET() {
       "Estado",
       "Subestado",
       "Asignado a",
+      "Puertos Totales",
+      "Puertos Ocupados",
+      "Potencia (dBm)",
+      "Cierre Seguridad",
+      "Etiquetado Correcto",
       "Notas"
     ];
 
@@ -56,6 +61,11 @@ export async function GET() {
       escapeCsv(cto.status),
       escapeCsv(cto.subStatus?.name),
       escapeCsv(cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : ""),
+      escapeCsv(cto.puertosTotal),
+      escapeCsv(cto.puertosOcupados),
+      escapeCsv(cto.potenciaDbm),
+      escapeCsv(cto.cierreSeguridad ? "OK" : "INCORRECTO"),
+      escapeCsv(cto.etiquetadoCorrecto ? "SÍ" : "NO"),
       escapeCsv(cto.notas)
     ]);
 

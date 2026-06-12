@@ -28,7 +28,7 @@ export default async function Home() {
     // Obtener última vista del mapa guardada para el usuario
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { lastLat: true, lastLng: true, lastZoom: true, zoomThreshold: true }
+      select: { lastLat: true, lastLng: true, lastZoom: true, zoomThreshold: true, theme: true }
     });
 
     if (user) {
@@ -36,8 +36,9 @@ export default async function Home() {
         lat: user.lastLat !== null ? user.lastLat : 36.425,
         lng: user.lastLng !== null ? user.lastLng : -5.144,
         zoom: user.lastZoom !== null ? user.lastZoom : 14,
-        zoomThreshold: user.zoomThreshold || 13
-      };
+        zoomThreshold: user.zoomThreshold || 13,
+        theme: user.theme || "orange"
+      } as any;
     }
   } catch (e) {
     console.error("Error connecting to DB", e);
