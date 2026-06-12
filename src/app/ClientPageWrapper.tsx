@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import MapWrapper from "@/components/MapWrapper";
 import CtoDrawer from "@/components/CtoDrawer";
 import { signOut } from "next-auth/react";
+
+type SubStatus = { id: string; name: string; color: string };
+type User = { id: string; name: string; email: string };
 
 export default function ClientPageWrapper({ initialCtos, initialMapState }: { initialCtos: any[]; initialMapState: any }) {
   const [selectedCto, setSelectedCto] = useState<any>(null);
@@ -11,17 +14,91 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [activeView, setActiveView] = useState<"map" | "list">("map");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filtrar CTOs dinámicamente según el buscador
+  // Estados de filtros avanzados
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterSubStatus, setFilterSubStatus] = useState("");
+  const [filterAssigned, setFilterAssigned] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Opciones de filtros dinámicos (cargados de la BD)
+  const [subStatuses, setSubStatuses] = useState<SubStatus[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+
+  // Cargar opciones para los filtros
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const [resSub, resUsers] = await Promise.all([
+        fetch("/api/status"),
+        fetch("/api/users"),
+      ]);
+      if (resSub.ok) setSubStatuses(await resSub.json());
+      if (resUsers.ok) setUsers(await resUsers.json());
+    } catch (e) {
+      console.error("Error al cargar opciones de filtro:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFilterOptions();
+  }, [fetchFilterOptions]);
+
+  // Contar cuántos filtros avanzados están aplicados
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterStatus) count++;
+    if (filterSubStatus) count++;
+    if (filterAssigned) count++;
+    return count;
+  }, [filterStatus, filterSubStatus, filterAssigned]);
+
+  // Resetear filtros
+  const handleClearFilters = () => {
+    setFilterStatus("");
+    setFilterSubStatus("");
+    setFilterAssigned("");
+    setSearchQuery("");
+  };
+
+  // Filtrar CTOs dinámicamente según búsqueda y filtros avanzados
   const filteredCtos = useMemo(() => {
+    let result = ctos;
+
+    // 1. Buscador de texto
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return ctos;
-    return ctos.filter(c => 
-      c.num.toLowerCase().includes(query) ||
-      (c.municipio && c.municipio.toLowerCase().includes(query)) ||
-      (c.colocacion && c.colocacion.toLowerCase().includes(query)) ||
-      (c.numeroNuevo && c.numeroNuevo.toLowerCase().includes(query))
-    );
-  }, [ctos, searchQuery]);
+    if (query) {
+      result = result.filter(c => 
+        c.num.toLowerCase().includes(query) ||
+        (c.municipio && c.municipio.toLowerCase().includes(query)) ||
+        (c.colocacion && c.colocacion.toLowerCase().includes(query)) ||
+        (c.numeroNuevo && c.numeroNuevo.toLowerCase().includes(query))
+      );
+    }
+
+    // 2. Filtro de Estado
+    if (filterStatus) {
+      result = result.filter(c => c.status === filterStatus);
+    }
+
+    // 3. Filtro de Subestado
+    if (filterSubStatus) {
+      if (filterSubStatus === "none") {
+        result = result.filter(c => !c.subStatusId);
+      } else {
+        result = result.filter(c => c.subStatusId === filterSubStatus);
+      }
+    }
+
+    // 4. Filtro de Asignación
+    if (filterAssigned) {
+      if (filterAssigned === "unassigned") {
+        result = result.filter(c => !c.assignedToId);
+      } else {
+        result = result.filter(c => c.assignedToId === filterAssigned);
+      }
+    }
+
+    return result;
+  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned]);
 
   // Limitar el renderizado en lista para rendimiento móvil óptimo (máx 100 elementos a la vez)
   const visibleListCtos = useMemo(() => {
@@ -57,34 +134,123 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
           </div>
         </div>
 
-        {/* Fila 2: Buscador */}
-        <div style={{ position: "relative", marginBottom: "12px" }}>
-          <input
-            type="text"
-            className="input-field"
-            placeholder="🔍 Buscar por número de CTO o municipio..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ 
-              padding: "10px 40px 10px 14px", 
-              fontSize: "0.95rem", 
-              minHeight: "44px", 
-              background: "#f8fafc",
-              border: "1.5px solid #cbd5e1"
-            }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              style={{
-                position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", fontSize: "1.2rem", color: "#94a3b8", cursor: "pointer", padding: "4px"
+        {/* Fila 2: Buscador + Botón Filtros */}
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="🔍 Buscar por número o municipio..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ 
+                padding: "10px 40px 10px 14px", 
+                fontSize: "0.95rem", 
+                minHeight: "44px", 
+                background: "#f8fafc",
+                border: "1.5px solid #cbd5e1"
               }}
-            >
-              ✕
-            </button>
-          )}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", fontSize: "1.2rem", color: "#94a3b8", cursor: "pointer", padding: "4px"
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              padding: "0 12px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid #cbd5e1",
+              background: showFilters || activeFiltersCount > 0 ? "#FF7900" : "white",
+              color: showFilters || activeFiltersCount > 0 ? "white" : "#475569",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", minHeight: "44px",
+              transition: "all 0.2s"
+            }}
+          >
+            🎛️ {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}
+          </button>
         </div>
+
+        {/* Fila Opcional: Sección desplegable de filtros avanzados (Mobile-first) */}
+        {showFilters && (
+          <div style={{
+            background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", 
+            marginBottom: "12px", display: "flex", flexDirection: "column", gap: "8px"
+          }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {/* Selector de Estado */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Estado</label>
+                <select 
+                  className="input-field" 
+                  value={filterStatus} 
+                  onChange={e => setFilterStatus(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+                >
+                  <option value="">Todos</option>
+                  <option value="PENDIENTE">PENDIENTE</option>
+                  <option value="CORRECTO">CORRECTO</option>
+                  <option value="FALLO">FALLO</option>
+                </select>
+              </div>
+
+              {/* Selector de Subestado */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Subestado</label>
+                <select 
+                  className="input-field" 
+                  value={filterSubStatus} 
+                  onChange={e => setFilterSubStatus(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+                >
+                  <option value="">Todos</option>
+                  <option value="none">Sin subestado</option>
+                  {subStatuses.map(sub => (
+                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Selector de Técnico */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Asignado a</label>
+              <select 
+                className="input-field" 
+                value={filterAssigned} 
+                onChange={e => setFilterAssigned(e.target.value)}
+                style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "white" }}
+              >
+                <option value="">Todos los técnicos</option>
+                <option value="unassigned">Sin asignar</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Limpiar Filtros */}
+            {(activeFiltersCount > 0 || searchQuery) && (
+              <button 
+                onClick={handleClearFilters}
+                className="btn"
+                style={{ 
+                  background: "#fee2e2", color: "#dc2626", minHeight: "32px", fontSize: "0.85rem", 
+                  padding: "4px 8px", width: "100%", fontWeight: 700 
+                }}
+              >
+                Limpiar Filtros Aplicados
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Fila 3: Selector de Vista (Mapa vs Lista) - Diseño Premium Táctil */}
         <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "4px" }}>
@@ -120,7 +286,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         {/* VISTA MAPA */}
         <div style={{ display: activeView === "map" ? "block" : "none", width: "100%", height: "100%" }}>
           <MapWrapper 
-            ctos={filteredCtos} // El mapa también se filtra en tiempo real
+            ctos={filteredCtos} // El mapa se filtra en tiempo real
             onCtoClick={(cto: any) => setSelectedCto(cto)} 
             initialMapState={initialMapState}
           />
@@ -133,7 +299,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             {filteredCtos.length === 0 ? (
               <div style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
                 <p style={{ fontSize: "1.1rem", fontWeight: 600 }}>No se encontraron CTOs</p>
-                <p style={{ fontSize: "0.9rem", color: "#94a3b8", marginTop: "4px" }}>Prueba a cambiar el término de búsqueda</p>
+                <p style={{ fontSize: "0.9rem", color: "#94a3b8", marginTop: "4px" }}>Prueba a cambiar el término o filtros de búsqueda</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "600px", margin: "0 auto", paddingBottom: "80px" }}>
