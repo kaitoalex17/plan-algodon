@@ -11,15 +11,23 @@ RUN apk add --no-cache libc6-compat openssl
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
 
-# Copiar el resto del código
+# Copiar el resto del código (incluye prisma/schema.prisma)
 COPY . .
 
-# Construir Next.js SIN prisma generate (lo haremos en runtime)
+# Generar el cliente Prisma ANTES del build de Next.js
+# Prisma generate no necesita conectarse a la BD, solo genera código
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+RUN npx prisma generate
+
+# Construir Next.js (ahora sí tiene el cliente Prisma disponible)
 RUN npm run build
+
+# Eliminar la URL dummy para que en runtime use la real
+ENV DATABASE_URL=""
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Al arrancar el contenedor: generar prisma, hacer db push y lanzar la app
-CMD npx prisma generate && npx prisma db push && npm run start
+# Al arrancar: aplicar esquema a la BD real y lanzar la app
+CMD npx prisma db push --skip-generate && npm run start
