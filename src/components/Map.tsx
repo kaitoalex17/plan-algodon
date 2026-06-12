@@ -215,16 +215,80 @@ function GpsControls({
   );
 }
 
+// Leyenda del Mapa (Colores de estados y técnicos)
+function MapLegend({ users }: { users: any[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{
+      position: "absolute", bottom: "20px", left: "20px", zIndex: 1000,
+      background: "white", padding: open ? "12px" : "8px 12px", borderRadius: "10px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0",
+      maxWidth: "250px", transition: "all 0.2s"
+    }}>
+      <div 
+        onClick={() => setOpen(!open)}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", gap: "8px" }}
+      >
+        <span>📖 Leyenda de Colores</span>
+        <span>{open ? "▼" : "▲"}</span>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+          {/* Estados (Bordes) */}
+          <div>
+            <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Borde (Estado)</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #808080", background: "white" }} />
+                <span>Pendiente</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #10b981", background: "white" }} />
+                <span>Correcto</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", background: "white" }} />
+                <span>Fallo</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Técnicos (Relleno) */}
+          <div>
+            <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Relleno (Asignación)</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem", maxHeight: "120px", overflowY: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: "#ffffff" }} />
+                <span>Sin asignar</span>
+              </div>
+              {users.map((u, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: u.color }} />
+                  <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "180px" }}>{u.name || u.email}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Map({ 
   ctos, 
   onCtoClick,
   initialMapState,
-  zoomThreshold = 13
+  zoomThreshold = 13,
+  users = []
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void,
   initialMapState?: any,
-  zoomThreshold?: number
+  zoomThreshold?: number,
+  users?: any[]
 }) {
   // Google Maps Normal por defecto: vt/lyrs=m
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
@@ -236,7 +300,7 @@ export default function Map({
   return (
     <MapContainer 
       center={[initialMapState?.lat || 36.425, initialMapState?.lng || -5.144]} 
-      zoom={[initialMapState?.zoom || 14]} 
+      zoom={initialMapState?.zoom || 14} 
       className="map-container" 
       zoomControl={false}
     >
@@ -286,6 +350,9 @@ export default function Map({
         setIsTracking={setIsTracking} 
         userLocation={userLocation}
       />
+
+      {/* Leyenda del mapa */}
+      <MapLegend users={users} />
     </MapContainer>
   );
 }

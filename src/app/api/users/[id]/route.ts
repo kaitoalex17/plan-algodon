@@ -5,12 +5,13 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 // PATCH: editar usuario
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const { id } = await params;
   const { name, email, password, role, color } = await req.json();
 
   const updateData: any = {};
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const user = await prisma.user.update({
-    where: { id: params.id },
+    where: { id },
     data: updateData,
     select: { id: true, name: true, email: true, role: true, color: true },
   });
@@ -32,18 +33,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE: eliminar usuario
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   // No permitir eliminar el propio usuario admin
   const currentUserId = (session.user as any).id;
-  if (params.id === currentUserId) {
+  if (id === currentUserId) {
     return NextResponse.json({ error: "No puedes eliminar tu propia cuenta" }, { status: 400 });
   }
 
-  await prisma.user.delete({ where: { id: params.id } });
+  await prisma.user.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

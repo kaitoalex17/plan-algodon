@@ -4,15 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET: obtener detalles completos de una CTO (comentarios, imágenes, historial)
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     const cto = await prisma.cTO.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         assignedTo: {
           select: { id: true, name: true, email: true, color: true }
@@ -46,13 +48,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PATCH: actualizar estado, sub-estado, notas, asignado y/o añadir comentarios
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await req.json();
     const { 
       status, subStatusId, assignedToId, notas, commentText,
@@ -62,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // Obtener estado anterior para el historial
     const oldCto = await prisma.cTO.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { subStatus: true }
     });
 
@@ -134,7 +137,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // Actualizar CTO en la BD
     const updatedCto = await prisma.cTO.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData
     });
 
@@ -143,7 +146,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await prisma.comment.create({
         data: {
           text: commentText.trim(),
-          ctoId: params.id,
+          ctoId: id,
           userId: userId
         }
       });
@@ -155,7 +158,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await prisma.history.create({
         data: {
           action: historyActions.join(" | "),
-          ctoId: params.id,
+          ctoId: id,
           userId: userId
         }
       });
@@ -169,15 +172,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE: Eliminar una CTO individual por un administrador
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || (session.user as any).role !== "ADMIN") {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     await prisma.cTO.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ success: true });

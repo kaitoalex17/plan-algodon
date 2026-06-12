@@ -391,6 +391,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onCtoClick={(cto: any) => setSelectedCto(cto)} 
             initialMapState={initialMapState}
             zoomThreshold={zoomThreshold}
+            users={users}
           />
         </div>
 
