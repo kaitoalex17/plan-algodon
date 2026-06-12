@@ -198,6 +198,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       <div className="cto-drawer open">
         <div className="drawer-handle" />
         
+        {/* Botón de cierre en esquina superior derecha */}
+        <button 
+          type="button"
+          onClick={onClose} 
+          title="Cerrar"
+          style={{ 
+            position: "absolute", top: "16px", right: "20px", background: "var(--border-color)", 
+            border: "none", borderRadius: "50%", width: "32px", height: "32px", display: "flex", 
+            alignItems: "center", justifyContent: "center", fontSize: "1.2rem", fontWeight: 700, 
+            color: "var(--text-color)", cursor: "pointer", zIndex: 10 
+          }}
+        >
+          ✕
+        </button>
+        
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
           <div>
@@ -311,27 +326,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
               </div>
 
-              {/* Checkboxes de Seguridad y Etiquetado */}
-              <div style={{ display: "flex", gap: "20px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>
-                  <input 
-                    type="checkbox" 
-                    checked={cierreSeguridad} 
-                    onChange={e => setCierreSeguridad(e.target.checked)}
-                    style={{ transform: "scale(1.25)", cursor: "pointer" }}
-                  />
-                  Cierre de Seguridad OK
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>
-                  <input 
-                    type="checkbox" 
-                    checked={etiquetadoCorrecto} 
-                    onChange={e => setEtiquetadoCorrecto(e.target.checked)}
-                    style={{ transform: "scale(1.25)", cursor: "pointer" }}
-                  />
-                  Etiquetado Correcto
-                </label>
-              </div>
+
 
               {isAdmin && (
                 <div style={{ marginBottom: "1rem" }}>

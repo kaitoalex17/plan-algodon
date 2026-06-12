@@ -37,7 +37,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [searchQuery, setSearchQuery] = useState("");
 
   // Ajustes de visualización (persisten en la base de datos de usuario)
-  const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 13);
+  const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 12);
   const [theme, setTheme] = useState(initialMapState?.theme || "orange");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 

@@ -128,12 +128,12 @@ function CtoMarkers({ ctos, onCtoClick, zoomThreshold }: { ctos: any[], onCtoCli
         <CircleMarker 
           key={cto.id}
           center={[cto.lat, cto.lng]}
-          radius={8}
+          radius={6}
           pathOptions={{ 
             color: cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444"), 
             fillColor: cto.assignedTo?.color || "#ffffff", 
             fillOpacity: 1,
-            weight: 3
+            weight: 2
           }}
           eventHandlers={{
             click: () => onCtoClick(cto)
@@ -163,7 +163,7 @@ function GpsControls({
   };
 
   return (
-    <div style={{ position: "absolute", bottom: "20px", right: "20px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div style={{ position: "absolute", bottom: "75px", right: "20px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
       
       {/* Botón centrar en mi posición */}
       {isTracking && userLocation && (
@@ -221,7 +221,7 @@ function MapLegend({ users }: { users: any[] }) {
 
   return (
     <div style={{
-      position: "absolute", bottom: "20px", left: "20px", zIndex: 1000,
+      position: "absolute", bottom: "75px", left: "20px", zIndex: 1000,
       background: "white", padding: open ? "12px" : "8px 12px", borderRadius: "10px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0",
       maxWidth: "250px", transition: "all 0.2s"
@@ -281,7 +281,7 @@ export default function Map({
   ctos, 
   onCtoClick,
   initialMapState,
-  zoomThreshold = 13,
+  zoomThreshold = 12,
   users = []
 }: { 
   ctos: any[], 
@@ -292,6 +292,7 @@ export default function Map({
 }) {
   // Google Maps Normal por defecto: vt/lyrs=m
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
+  const [showMapTypes, setShowMapTypes] = useState(false);
   
   // Estados de Geolocalización
   const [isTracking, setIsTracking] = useState(false);
@@ -306,13 +307,52 @@ export default function Map({
     >
       <TileLayer url={tileUrl} />
       
-      {/* Selector de tipo de mapa (Google Maps Normal / Google Maps Satélite / OpenStreetMap) */}
-      <div style={{ position: "absolute", top: "80px", right: "10px", zIndex: 1000, background: "white", padding: "12px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" }}>
-        <select onChange={(e) => setTileUrl(e.target.value)} style={{ border: "none", background: "transparent", outline: "none", fontWeight: 700, color: "#111827", fontSize: "1rem" }}>
-          <option value="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}">Google Maps Normal</option>
-          <option value="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}">Google Maps Satélite</option>
-          <option value="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png">OpenStreetMap</option>
-        </select>
+      {/* Selector de tipo de mapa simplificado (Icono + Popover) */}
+      <div style={{ position: "absolute", top: "80px", right: "10px", zIndex: 1000 }}>
+        <button 
+          onClick={() => setShowMapTypes(!showMapTypes)}
+          style={{
+            width: "44px", height: "44px", borderRadius: "50%", background: "white",
+            border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", cursor: "pointer",
+            transition: "transform 0.2s"
+          }}
+          title="Cambiar capa de mapa"
+        >
+          🗺️
+        </button>
+
+        {showMapTypes && (
+          <div style={{
+            position: "absolute", right: "50px", top: "0", background: "white",
+            border: "1.5px solid #cbd5e1", borderRadius: "12px", padding: "8px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: "6px",
+            minWidth: "160px", zIndex: 1001
+          }}>
+            {[
+              { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
+              { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
+              { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },
+              { value: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", label: "OpenStreetMap" }
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setTileUrl(opt.value);
+                  setShowMapTypes(false);
+                }}
+                style={{
+                  background: tileUrl === opt.value ? "#FF7900" : "transparent",
+                  color: tileUrl === opt.value ? "white" : "#111827",
+                  border: "none", borderRadius: "6px", padding: "8px 12px", textAlign: "left",
+                  fontSize: "0.85rem", fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Marcador del Usuario (GPS) */}

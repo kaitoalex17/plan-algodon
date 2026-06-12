@@ -20,7 +20,7 @@ model User {
   lastLat       Float?
   lastLng       Float?
   lastZoom      Int?
-  zoomThreshold Int       @default(13)
+  zoomThreshold Int       @default(12)
   theme         String    @default("orange")
   assignedCTOs  CTO[]     @relation("AssignedTo")
   comments      Comment[]
