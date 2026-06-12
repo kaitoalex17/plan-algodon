@@ -52,9 +52,9 @@ export default async function AdminPage() {
           <Link href="/admin/status" className="btn" style={{ background: '#e2e8f0', color: '#111827', justifyContent: 'center', padding: '1rem' }}>
             Configurar Subestados y Colores
           </Link>
-          <button className="btn" style={{ background: '#fef3c7', color: '#92400e', justifyContent: 'center', padding: '1rem', cursor: 'not-allowed', opacity: 0.8 }} disabled title="Idea pendiente para el futuro">
-            Exportar Datos y Fotos (Próximamente)
-          </button>
+          <a href="/api/admin/export" className="btn" style={{ background: '#fef3c7', color: '#92400e', justifyContent: 'center', padding: '1rem', fontWeight: 700 }}>
+            📥 Exportar Datos (Descargar CSV para Excel)
+          </a>
         </div>
       </div>
     </div>

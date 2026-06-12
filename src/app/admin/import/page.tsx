@@ -8,6 +8,7 @@ export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [clearExisting, setClearExisting] = useState(false);
 
   const handleImport = async () => {
     if (!file) return;
@@ -25,7 +26,7 @@ export default function ImportPage() {
         const res = await fetch("/api/ctos/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ctos: parsedData })
+          body: JSON.stringify({ ctos: parsedData, clearExisting })
         });
         
         const json = await res.json();
@@ -56,8 +57,21 @@ export default function ImportPage() {
           type="file" 
           accept=".xlsx, .xls" 
           onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ marginBottom: '1.5rem', width: '100%', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}
+          style={{ marginBottom: '1rem', width: '100%', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}
         />
+        
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input 
+            type="checkbox" 
+            id="clearExisting"
+            checked={clearExisting}
+            onChange={(e) => setClearExisting(e.target.checked)}
+            style={{ transform: "scale(1.2)", cursor: "pointer" }}
+          />
+          <label htmlFor="clearExisting" style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
+            Vaciar catálogo de CTOs de la base de datos antes de importar (Evita duplicados)
+          </label>
+        </div>
 
         <button 
           onClick={handleImport} 

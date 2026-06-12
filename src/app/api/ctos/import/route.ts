@@ -7,14 +7,18 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || (session.user as any).role !== "ADMIN") {
-      // return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-      // Temporalmente comentado para permitir pruebas sin roles
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    const { ctos } = await req.json();
+    const { ctos, clearExisting } = await req.json();
 
     if (!ctos || !Array.isArray(ctos)) {
       return NextResponse.json({ error: "Formato de datos inválido" }, { status: 400 });
+    }
+
+    if (clearExisting) {
+      // Eliminar historial, comentarios y fotos asociadas antes de limpiar (la BD lo hace por cascade onDelete)
+      await prisma.cTO.deleteMany();
     }
 
     const formattedCtos = ctos.map((row: any) => {
