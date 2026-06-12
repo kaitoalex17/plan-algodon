@@ -66,7 +66,7 @@ function CtoMarkers({ ctos, onCtoClick }: { ctos: any[], onCtoClick: (cto: any) 
           center={[cto.lat, cto.lng]}
           radius={8}
           pathOptions={{ 
-            color: cto.status === 'PENDIENTE' ? '#808080' : (cto.subStatus?.color || '#3b82f6'), 
+            color: cto.subStatus?.color || (cto.status === 'PENDIENTE' ? '#808080' : cto.status === 'CORRECTO' ? '#10b981' : '#ef4444'), 
             fillColor: cto.assignedTo?.color || '#ffffff', 
             fillOpacity: 1,
             weight: 3

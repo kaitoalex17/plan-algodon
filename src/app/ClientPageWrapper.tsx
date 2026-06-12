@@ -28,6 +28,10 @@ export default function ClientPageWrapper({ initialCtos }: { initialCtos: any[] 
       <CtoDrawer 
         cto={selectedCto} 
         onClose={() => setSelectedCto(null)} 
+        onUpdate={(updatedCto: any) => {
+          setCtos(prev => prev.map(c => c.id === updatedCto.id ? { ...c, ...updatedCto } : c));
+          setSelectedCto(updatedCto);
+        }}
       />
     </div>
   );
