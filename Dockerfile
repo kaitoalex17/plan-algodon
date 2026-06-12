@@ -29,5 +29,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Al arrancar: aplicar esquema a la BD real y lanzar la app
-CMD npx prisma db push --skip-generate && npm run start
+# Al arrancar: aplicar esquema a la BD real, ejecutar seed si es necesario, y lanzar la app
+CMD npx prisma db push --skip-generate && node prisma/seed.js && npm run start
