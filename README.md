@@ -106,3 +106,5 @@ Se han aplicado directrices avanzadas de diseño de interfaces web, optimizacion
 ## 📄 Licencia
 
 Este proyecto está distribuido bajo la **Licencia MIT**. Puedes ver más detalles en el archivo [LICENSE](file:///c:/app/algodon-new/LICENSE) adjunto en este repositorio.
+
+Para ver el desglose completo de las licencias de dependencias de terceros (como Leaflet, React, Sharp y avisos legales sobre el uso de teselas de Google Maps), consulta el archivo [THIRD_PARTY_LICENSES.md](file:///c:/app/algodon-new/THIRD_PARTY_LICENSES.md).
