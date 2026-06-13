@@ -17,6 +17,7 @@ const PRESET_COLORS = [
 
 export default function StatusConfigPage() {
   const [statuses, setStatuses] = useState<SubStatus[]>([]);
+  const [activeCategory, setActiveCategory] = useState<"AUDITORIA" | "PROGRAMADA">("AUDITORIA");
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#808080");
@@ -26,12 +27,12 @@ export default function StatusConfigPage() {
 
   const fetchStatuses = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/status");
+    const res = await fetch(`/api/status?category=${activeCategory}`);
     if (res.ok) {
       setStatuses(await res.json());
     }
     setLoading(false);
-  }, []);
+  }, [activeCategory]);
 
   useEffect(() => {
     fetchStatuses();
@@ -48,7 +49,7 @@ export default function StatusConfigPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, color })
+      body: JSON.stringify({ name, color, category: activeCategory })
     });
 
     if (res.ok) {
@@ -99,12 +100,42 @@ export default function StatusConfigPage() {
           </Link>
         </div>
 
+        {/* Tabs de Categorías */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "1.5rem", background: "#e5e7eb", padding: "4px", borderRadius: "10px" }}>
+          <button 
+            type="button" 
+            onClick={() => { setActiveCategory("AUDITORIA"); cancelEdit(); }}
+            style={{ 
+              flex: 1, padding: "12px", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer",
+              background: activeCategory === "AUDITORIA" ? "#FF7900" : "transparent",
+              color: activeCategory === "AUDITORIA" ? "white" : "#374151",
+              fontSize: "0.9rem",
+              transition: "all 0.2s"
+            }}
+          >
+            Auditorías (Caja Normal)
+          </button>
+          <button 
+            type="button" 
+            onClick={() => { setActiveCategory("PROGRAMADA"); cancelEdit(); }}
+            style={{ 
+              flex: 1, padding: "12px", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer",
+              background: activeCategory === "PROGRAMADA" ? "#FF7900" : "transparent",
+              color: activeCategory === "PROGRAMADA" ? "white" : "#374151",
+              fontSize: "0.9rem",
+              transition: "all 0.2s"
+            }}
+          >
+            Programadas (Pendientes de instalar)
+          </button>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
           
           {/* Formulario Crear/Editar */}
           <div className="glass-panel" style={{ padding: "1.5rem", background: "white", height: "fit-content" }}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1.25rem" }}>
-              {editingId ? "Editar Subestado" : "Nuevo Subestado"}
+              {editingId ? "Editar Subestado" : "Nuevo Subestado"} ({activeCategory === "AUDITORIA" ? "Auditoría" : "Programada"})
             </h3>
             
             <form onSubmit={handleSubmit}>

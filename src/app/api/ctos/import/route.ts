@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { decodeHtml } from "@/lib/utils";
 
 export async function POST(req: Request) {
   try {
@@ -10,15 +11,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    const { ctos, clearExisting } = await req.json();
+    const { ctos, clearExisting, category } = await req.json();
 
     if (!ctos || !Array.isArray(ctos)) {
       return NextResponse.json({ error: "Formato de datos inválido" }, { status: 400 });
     }
 
+    const activeCategory = category || "AUDITORIA";
+
     if (clearExisting) {
-      // Eliminar historial, comentarios y fotos asociadas antes de limpiar (la BD lo hace por cascade onDelete)
-      await prisma.cTO.deleteMany();
+      // Eliminar historial, comentarios y fotos asociadas de la categoría específica antes de limpiar
+      await prisma.cTO.deleteMany({
+        where: { category: activeCategory }
+      });
     }
 
     const formattedCtos = ctos.map((row: any) => {
@@ -39,16 +44,17 @@ export async function POST(req: Request) {
       }
 
       return {
-        num: String(row.Número || row['№'] || Date.now().toString()),
-        numeroNuevo: row.NumeroNuevo ? String(row.NumeroNuevo) : null,
+        num: decodeHtml(String(row.Número || row['№'] || Date.now().toString())),
+        numeroNuevo: row.NumeroNuevo ? decodeHtml(String(row.NumeroNuevo)) : null,
         coordenadas: String(row.Coordenadas || ''),
         lat,
         lng,
-        municipio: row.Municipio ? String(row.Municipio) : null,
-        colocacion: row.Colocación ? String(row.Colocación) : null,
+        municipio: row.Municipio ? decodeHtml(String(row.Municipio)) : null,
+        colocacion: row.Colocación ? decodeHtml(String(row.Colocación)) : null,
         fechaAgregacion: fecha,
-        notas: row.Notas ? String(row.Notas) : null,
+        notas: row.Notas ? decodeHtml(String(row.Notas)) : null,
         status: "PENDIENTE",
+        category: activeCategory,
       };
     }).filter((c: any) => c.lat !== 0 && c.lng !== 0);
 

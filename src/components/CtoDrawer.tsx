@@ -38,6 +38,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // States for toggles
+  const [showFiberDetails, setShowFiberDetails] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
     if (!cto?.id) return;
@@ -85,6 +89,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     if (cto) {
       fetchCtoDetails();
       fetchOptions();
+      setShowFiberDetails(false); // Reset on cto change
     } else {
       setDetails(null);
     }
@@ -108,8 +113,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
           puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
           potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
-          cierreSeguridad,
-          etiquetadoCorrecto,
+          cierreSeguridad: true,
+          etiquetadoCorrecto: true,
         }),
       });
 
@@ -132,8 +137,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
           puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
           potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
-          cierreSeguridad,
-          etiquetadoCorrecto,
+          cierreSeguridad: true,
+          etiquetadoCorrecto: true,
         };
 
         onUpdate(fullUpdatedCto);
@@ -189,6 +194,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     window.open(`https://cto-tracker.olin.es/cto/${cto.num}`, "_blank");
   };
 
+  // Filter substatuses matching current CTO's category
+  const filteredSubStatuses = subStatuses.filter(
+    sub => (sub as any).category === cto.category
+  );
+
+  const isProgramada = cto.category === "PROGRAMADA";
+  const displayStatus = status === "REVISADO" ? "REVISADO" : status;
+
   return (
     <>
       <div 
@@ -217,14 +230,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
           <div>
             <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>CTO: {cto.num}</h2>
-            {cto.numeroNuevo && <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>Nº Nuevo: {cto.numeroNuevo}</p>}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
+              {cto.numeroNuevo && <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>Nº Nuevo: {cto.numeroNuevo}</span>}
+              <span style={{ fontSize: "0.75rem", background: "var(--border-color)", color: "var(--text-color)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                {isProgramada ? "PROGRAMADA" : "AUDITORIA"}
+              </span>
+            </div>
           </div>
           <span style={{ 
             padding: "6px 14px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: 700,
-            background: status === "CORRECTO" ? "#d1fae5" : status === "FALLO" ? "#fee2e2" : "#f3f4f6",
-            color: status === "CORRECTO" ? "#065f46" : status === "FALLO" ? "#991b1b" : "#374151"
+            background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#f3f4f6",
+            color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#374151"
           }}>
-            {status}
+            {displayStatus}
           </span>
         </div>
 
@@ -251,7 +269,60 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
             {/* Formulario de Auditoría */}
             <form onSubmit={handleSave} style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Auditar CTO</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>Auditar CTO</h3>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {/* Botón Info (i de Iconoir) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowFiberDetails(!showFiberDetails)}
+                    title="Ver detalles de fibra"
+                    style={{
+                      background: showFiberDetails ? "var(--primary-color)" : "var(--border-color)",
+                      color: showFiberDetails ? "white" : "var(--text-color)",
+                      border: "none",
+                      borderRadius: "8px",
+                      width: "38px",
+                      height: "38px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                  
+                  {/* Botón Comentarios (Burbuja de diálogo de Iconoir) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCommentsModal(true)}
+                    title="Seguimiento de Comentarios e Historial"
+                    style={{
+                      background: "var(--border-color)",
+                      color: "var(--text-color)",
+                      border: "none",
+                      borderRadius: "8px",
+                      width: "38px",
+                      height: "38px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
               
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "1rem" }}>
                 <div>
@@ -265,9 +336,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     }}
                     style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                   >
-                    <option value="PENDIENTE">PENDIENTE</option>
-                    <option value="CORRECTO">CORRECTO</option>
-                    <option value="FALLO">FALLO</option>
+                    {isProgramada ? (
+                      <>
+                        <option value="PENDIENTE">PENDIENTE</option>
+                        <option value="REVISADO">REVISADO</option>
+                        <option value="FALLO">FALLO</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="PENDIENTE">PENDIENTE</option>
+                        <option value="CORRECTO">CORRECTO</option>
+                        <option value="FALLO">FALLO</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -281,52 +362,52 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                   >
                     <option value="">Ninguno</option>
-                    {subStatuses.map(sub => (
+                    {filteredSubStatuses.map(sub => (
                       <option key={sub.id} value={sub.id}>{sub.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Nuevos Datos de Fibra */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "1rem" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
-                  <input 
-                    type="number" 
-                    className="input-field" 
-                    value={puertosTotal} 
-                    onChange={e => setPuertosTotal(e.target.value)}
-                    placeholder="16"
-                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                  />
+              {/* Nuevos Datos de Fibra (Bajo botón i) */}
+              {showFiberDetails && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      value={puertosTotal} 
+                      onChange={e => setPuertosTotal(e.target.value)}
+                      placeholder="16"
+                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      value={puertosOcupados} 
+                      onChange={e => setPuertosOcupados(e.target.value)}
+                      placeholder="0"
+                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="input-field" 
+                      value={potenciaDbm} 
+                      onChange={e => setPotenciaDbm(e.target.value)}
+                      placeholder="-19.5"
+                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
-                  <input 
-                    type="number" 
-                    className="input-field" 
-                    value={puertosOcupados} 
-                    onChange={e => setPuertosOcupados(e.target.value)}
-                    placeholder="0"
-                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
-                  <input 
-                    type="number" 
-                    step="any"
-                    className="input-field" 
-                    value={potenciaDbm} 
-                    onChange={e => setPotenciaDbm(e.target.value)}
-                    placeholder="-19.5"
-                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                  />
-                </div>
-              </div>
-
-
+              )}
 
               {isAdmin && (
                 <div style={{ marginBottom: "1rem" }}>
@@ -389,7 +470,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </label>
               </div>
 
-              {/* Escribir Comentario */}
+              {/* Escribir Comentario rápido */}
               <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "1rem", marginBottom: "1rem" }}>
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Añadir Comentario rápido al Historial</label>
                 <textarea 
@@ -411,42 +492,125 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </div>
             </form>
 
-            {/* Muro de Comentarios */}
-            {details?.comments && details.comments.length > 0 && (
-              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem", marginTop: "1rem" }}>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--text-color)" }}>Comentarios anteriores</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "200px", overflowY: "auto" }}>
-                  {details.comments.map((comm: any) => (
-                    <div key={comm.id} style={{ background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.7, marginBottom: "4px" }}>
-                        <strong style={{ color: comm.user?.color || "inherit" }}>{comm.user?.name || "Técnico"}</strong>
-                        <span>{new Date(comm.createdAt).toLocaleString()}</span>
-                      </div>
-                      <p style={{ fontSize: "0.85rem", margin: 0, color: "var(--text-color)", whiteSpace: "pre-wrap" }}>{comm.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Historial de Cambios */}
-            {details?.history && details.history.length > 0 && (
-              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem", marginTop: "1rem" }}>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--text-color)" }}>Historial de auditoría</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
-                  {details.history.map((hist: any) => (
-                    <div key={hist.id} style={{ fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.7, display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "4px" }}>
-                      <span><strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}</span>
-                      <span style={{ fontSize: "0.7rem", flexShrink: 0, marginLeft: "10px" }}>{new Date(hist.timestamp).toLocaleDateString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
           </div>
         )}
       </div>
+
+      {/* MODAL DE COMENTARIOS A PANTALLA COMPLETA */}
+      {showCommentsModal && (
+        <div style={{ position: "fixed", inset: 0, background: "var(--bg-color)", zIndex: 3000, display: "flex", flexDirection: "column", padding: "16px", overflow: "hidden" }}>
+          
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>
+              💬 Comentarios e Historial - CTO {cto.num}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowCommentsModal(false)}
+              className="btn"
+              style={{
+                minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)",
+                borderRadius: "8px", cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center"
+              }}
+            >
+              ✕ Cerrar
+            </button>
+          </div>
+
+          <div className="scrollable-content" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px", overflowY: "auto", paddingBottom: "24px" }}>
+            {/* Sección Escribir nuevo comentario */}
+            <div style={{ background: "var(--card-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+                Añadir nuevo comentario:
+              </label>
+              <textarea
+                className="input-field"
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                placeholder="Escribe comentarios sobre esta visita o estado de la CTO..."
+                style={{ minHeight: "100px", padding: "12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", marginBottom: "10px" }}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!commentText.trim()) return;
+                  setSaving(true);
+                  try {
+                    const res = await fetch(`/api/ctos/${cto.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ commentText }),
+                    });
+                    if (res.ok) {
+                      setCommentText("");
+                      fetchCtoDetails();
+                    } else {
+                      alert("Error al guardar el comentario");
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="btn btn-primary"
+                style={{ width: "100%", minHeight: "44px" }}
+                disabled={saving || !commentText.trim()}
+              >
+                {saving ? "Guardando..." : "Enviar Comentario"}
+              </button>
+            </div>
+
+            {/* Muro de Comentarios */}
+            <div style={{ background: "var(--card-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+              <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "12px", color: "var(--text-color)" }}>
+                Muro de Comentarios ({details?.comments?.length || 0})
+              </h3>
+              {details?.comments && details.comments.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {details.comments.map((comm: any) => (
+                    <div key={comm.id} style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.7, marginBottom: "6px" }}>
+                        <strong style={{ color: comm.user?.color || "inherit" }}>{comm.user?.name || "Técnico"}</strong>
+                        <span>{new Date(comm.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p style={{ fontSize: "0.88rem", margin: 0, color: "var(--text-color)", whiteSpace: "pre-wrap" }}>{comm.text}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.85rem", fontStyle: "italic", margin: 0 }}>
+                  No hay comentarios registrados
+                </p>
+              )}
+            </div>
+
+            {/* Historial de Cambios */}
+            <div style={{ background: "var(--card-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+              <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "12px", color: "var(--text-color)" }}>
+                Historial de Cambios ({details?.history?.length || 0})
+              </h3>
+              {details?.history && details.history.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {details.history.map((hist: any) => (
+                    <div key={hist.id} style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8, display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "6px" }}>
+                      <span><strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}</span>
+                      <span style={{ fontSize: "0.75rem", flexShrink: 0, marginLeft: "10px" }}>
+                        {new Date(hist.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.85rem", fontStyle: "italic", margin: 0 }}>
+                  No hay historial registrado
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

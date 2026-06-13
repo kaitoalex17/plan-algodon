@@ -4,13 +4,23 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET: obtener lista de sub-estados
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get("category");
+
+    const where: any = {};
+    if (category) {
+      where.category = category;
+    }
+
     const subStatuses = await prisma.subStatus.findMany({
+      where,
       orderBy: { name: "asc" }
     });
     return NextResponse.json(subStatuses);
@@ -27,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { name, color } = await req.json();
+    const { name, color, category } = await req.json();
     if (!name) {
       return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
     }
@@ -35,7 +45,8 @@ export async function POST(req: NextRequest) {
     const subStatus = await prisma.subStatus.create({
       data: {
         name,
-        color: color || "#808080"
+        color: color || "#808080",
+        category: category || "AUDITORIA"
       }
     });
 

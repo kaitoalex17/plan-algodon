@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { decodeHtml } from "@/lib/utils";
 
 // GET: obtener detalles completos de una CTO (comentarios, imágenes, historial)
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (!cto) {
       return NextResponse.json({ error: "CTO no encontrada" }, { status: 404 });
+    }
+
+    // Decodificar campos de texto para la vista
+    if (cto.notas) cto.notas = decodeHtml(cto.notas);
+    if (cto.num) cto.num = decodeHtml(cto.num);
+    if (cto.numeroNuevo) cto.numeroNuevo = decodeHtml(cto.numeroNuevo);
+    if (cto.municipio) cto.municipio = decodeHtml(cto.municipio);
+    if (cto.colocacion) cto.colocacion = decodeHtml(cto.colocacion);
+    if (cto.comments) {
+      cto.comments = cto.comments.map((c: any) => ({
+        ...c,
+        text: decodeHtml(c.text)
+      }));
     }
 
     return NextResponse.json(cto);
@@ -102,8 +116,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    if (notas !== undefined && notas !== oldCto.notas) {
-      updateData.notas = notas;
+    if (notas !== undefined && decodeHtml(notas) !== oldCto.notas) {
+      updateData.notas = decodeHtml(notas);
       historyActions.push("Actualizó las notas generales");
     }
 
@@ -130,13 +144,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // Campos de administrador adicionales
-    if (num !== undefined && num !== oldCto.num) {
-      updateData.num = String(num);
-      historyActions.push(`Modificó el número de CTO a "${num}"`);
+    if (num !== undefined && decodeHtml(String(num)) !== oldCto.num) {
+      updateData.num = decodeHtml(String(num));
+      historyActions.push(`Modificó el número de CTO a "${updateData.num}"`);
     }
-    if (numeroNuevo !== undefined && numeroNuevo !== oldCto.numeroNuevo) {
-      updateData.numeroNuevo = numeroNuevo ? String(numeroNuevo) : null;
-      historyActions.push(`Modificó el número nuevo a "${numeroNuevo || 'N/A'}"`);
+    if (numeroNuevo !== undefined && (numeroNuevo ? decodeHtml(String(numeroNuevo)) : null) !== oldCto.numeroNuevo) {
+      updateData.numeroNuevo = numeroNuevo ? decodeHtml(String(numeroNuevo)) : null;
+      historyActions.push(`Modificó el número nuevo a "${updateData.numeroNuevo || 'N/A'}"`);
     }
     if (lat !== undefined && lat !== oldCto.lat) {
       updateData.lat = parseFloat(lat);
@@ -149,13 +163,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (lat !== undefined || lng !== undefined) {
       updateData.coordenadas = `${updateData.lat ?? oldCto.lat}, ${updateData.lng ?? oldCto.lng}`;
     }
-    if (municipio !== undefined && municipio !== oldCto.municipio) {
-      updateData.municipio = municipio ? String(municipio) : null;
-      historyActions.push(`Modificó municipio a "${municipio || 'N/A'}"`);
+    if (municipio !== undefined && (municipio ? decodeHtml(String(municipio)) : null) !== oldCto.municipio) {
+      updateData.municipio = municipio ? decodeHtml(String(municipio)) : null;
+      historyActions.push(`Modificó municipio a "${updateData.municipio || 'N/A'}"`);
     }
-    if (colocacion !== undefined && colocacion !== oldCto.colocacion) {
-      updateData.colocacion = colocacion ? String(colocacion) : null;
-      historyActions.push(`Modificó colocación a "${colocacion || 'N/A'}"`);
+    if (colocacion !== undefined && (colocacion ? decodeHtml(String(colocacion)) : null) !== oldCto.colocacion) {
+      updateData.colocacion = colocacion ? decodeHtml(String(colocacion)) : null;
+      historyActions.push(`Modificó colocación a "${updateData.colocacion || 'N/A'}"`);
     }
 
     // Actualizar CTO en la BD
@@ -166,9 +180,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Guardar comentario si se proporcionó
     if (commentText && commentText.trim() !== "") {
+      const decodedComment = decodeHtml(commentText.trim());
       await prisma.comment.create({
         data: {
-          text: commentText.trim(),
+          text: decodedComment,
           ctoId: id,
           userId: userId
         }

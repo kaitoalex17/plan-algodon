@@ -9,6 +9,7 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [clearExisting, setClearExisting] = useState(false);
+  const [category, setCategory] = useState<"AUDITORIA" | "PROGRAMADA">("AUDITORIA");
 
   const handleImport = async () => {
     if (!file) return;
@@ -26,7 +27,7 @@ export default function ImportPage() {
         const res = await fetch("/api/ctos/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ctos: parsedData, clearExisting })
+          body: JSON.stringify({ ctos: parsedData, clearExisting, category })
         });
         
         const json = await res.json();
@@ -57,8 +58,41 @@ export default function ImportPage() {
           type="file" 
           accept=".xlsx, .xls" 
           onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ marginBottom: '1rem', width: '100%', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}
+          style={{ marginBottom: '1.5rem', width: '100%', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}
         />
+
+        {/* Selector de Categoría */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+            Categoría de importación *
+          </label>
+          <div style={{ display: "flex", gap: "10px", background: "#f3f4f6", padding: "4px", borderRadius: "8px" }}>
+            <button 
+              type="button" 
+              onClick={() => setCategory("AUDITORIA")}
+              style={{
+                flex: 1, padding: "10px", border: "none", borderRadius: "6px", fontWeight: 700, cursor: "pointer",
+                background: category === "AUDITORIA" ? "#FF7900" : "transparent",
+                color: category === "AUDITORIA" ? "white" : "#475569",
+                transition: "all 0.15s", fontSize: "0.85rem"
+              }}
+            >
+              Auditoría (Caja Normal)
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setCategory("PROGRAMADA")}
+              style={{
+                flex: 1, padding: "10px", border: "none", borderRadius: "6px", fontWeight: 700, cursor: "pointer",
+                background: category === "PROGRAMADA" ? "#FF7900" : "transparent",
+                color: category === "PROGRAMADA" ? "white" : "#475569",
+                transition: "all 0.15s", fontSize: "0.85rem"
+              }}
+            >
+              Programadas (Pendientes)
+            </button>
+          </div>
+        </div>
         
         <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input 
@@ -69,7 +103,7 @@ export default function ImportPage() {
             style={{ transform: "scale(1.2)", cursor: "pointer" }}
           />
           <label htmlFor="clearExisting" style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
-            Vaciar catálogo de CTOs de la base de datos antes de importar (Evita duplicados)
+            Vaciar catálogo de esta categoría en la base de datos antes de importar
           </label>
         </div>
 

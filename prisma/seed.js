@@ -31,19 +31,36 @@ async function main() {
   }
 
   // Verificar si existen sub-estados por defecto
-  const subStatusCount = await prisma.subStatus.count();
+  const subStatusCount = await prisma.subStatus.count({ where: { category: "AUDITORIA" } });
   if (subStatusCount === 0) {
-    console.log("Creando sub-estados por defecto...");
+    console.log("Creando sub-estados de AUDITORIA por defecto...");
     await prisma.subStatus.createMany({
       data: [
-        { name: "Sin acceso a fachada", color: "#6b7280" },
-        { name: "Caja rota/dañada", color: "#ef4444" },
-        { name: "Sin señal/potencia", color: "#f59e0b" },
-        { name: "Falta acometida", color: "#3b82f6" },
-        { name: "Correcto", color: "#10b981" },
+        { name: "Sin acceso a fachada", color: "#6b7280", category: "AUDITORIA" },
+        { name: "Caja rota/dañada", color: "#ef4444", category: "AUDITORIA" },
+        { name: "Sin señal/potencia", color: "#f59e0b", category: "AUDITORIA" },
+        { name: "Falta acometida", color: "#3b82f6", category: "AUDITORIA" },
+        { name: "Correcto", color: "#10b981", category: "AUDITORIA" },
       ],
     });
-    console.log("Sub-estados creados.");
+    console.log("Sub-estados de AUDITORIA creados.");
+  }
+
+  // Verificar si existen sub-estados de PROGRAMADA
+  const subStatusProgCount = await prisma.subStatus.count({ where: { category: "PROGRAMADA" } });
+  if (subStatusProgCount === 0) {
+    console.log("Creando sub-estados de PROGRAMADA por defecto...");
+    await prisma.subStatus.createMany({
+      data: [
+        { name: "No instalado", color: "#6b7280", category: "PROGRAMADA" },
+        { name: "No hay cable", color: "#ef4444", category: "PROGRAMADA" },
+        { name: "No hay permiso", color: "#f59e0b", category: "PROGRAMADA" },
+        { name: "Instalada \"Sincronizada\"", color: "#06b6d4", category: "PROGRAMADA" },
+        { name: "Instalada \"Aceptada\"", color: "#10b981", category: "PROGRAMADA" },
+        { name: "Instalada \"Construccion\"", color: "#8b5cf6", category: "PROGRAMADA" },
+      ],
+    });
+    console.log("Sub-estados de PROGRAMADA creados.");
   }
 }
 

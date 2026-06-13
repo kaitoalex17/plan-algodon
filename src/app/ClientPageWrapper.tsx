@@ -39,7 +39,11 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   // Ajustes de visualización (persisten en la base de datos de usuario)
   const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 12);
   const [theme, setTheme] = useState(initialMapState?.theme || "orange");
+  const [markerShape, setMarkerShape] = useState(initialMapState?.markerShape || "circle");
+  const [markerSize, setMarkerSize] = useState(initialMapState?.markerSize || 6);
+  const [showProgramadas, setShowProgramadas] = useState(initialMapState?.showProgramadas !== undefined ? initialMapState.showProgramadas : true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     // Eliminar temas anteriores
@@ -62,6 +66,45 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       });
     } catch (err) {
       console.error("Error guardando tema en BD:", err);
+    }
+  };
+
+  const handleMarkerShapeChange = async (val: string) => {
+    setMarkerShape(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markerShape: val })
+      });
+    } catch (err) {
+      console.error("Error guardando forma de marcador:", err);
+    }
+  };
+
+  const handleMarkerSizeChange = async (val: number) => {
+    setMarkerSize(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markerSize: val })
+      });
+    } catch (err) {
+      console.error("Error guardando tamaño de marcador:", err);
+    }
+  };
+
+  const handleShowProgramadasToggle = async (val: boolean) => {
+    setShowProgramadas(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showProgramadas: val })
+      });
+    } catch (err) {
+      console.error("Error guardando showProgramadas:", err);
     }
   };
 
@@ -159,6 +202,11 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const filteredCtos = useMemo(() => {
     let result = ctos;
 
+    // 0. Filtrar por categoría Programada
+    if (!showProgramadas) {
+      result = result.filter(c => c.category !== "PROGRAMADA");
+    }
+
     // 1. Buscador de texto
     const query = searchQuery.toLowerCase().trim();
     if (query) {
@@ -194,7 +242,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     }
 
     return result;
-  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned]);
+  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned, showProgramadas]);
 
   // Limitar el renderizado en lista para rendimiento móvil óptimo (máx 100 elementos a la vez)
   const visibleListCtos = useMemo(() => {
@@ -208,16 +256,32 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       <div style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", zIndex: 10, padding: "12px 16px" }}>
         
         {/* Fila 1: Logo y Acciones */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h1 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodon
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <h1 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "4px" }}>
+            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón
           </h1>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {/* Botón Mi Perfil (👤 Iconoir Outline) */}
+            <button 
+              onClick={() => setShowSettingsModal(true)} 
+              className="btn" 
+              title="Mi Perfil y Ajustes"
+              style={{ 
+                padding: "6px 8px", background: "var(--bg-color)", color: "var(--text-color)", 
+                minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
+                border: "1px solid var(--border-color)", borderRadius: "6px", cursor: "pointer" 
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </button>
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
                 className="btn" 
-                style={{ padding: "6px 12px", fontSize: "0.85rem", background: "var(--bg-color)", color: "var(--text-color)", minHeight: "36px", fontWeight: 600 }}
+                style={{ padding: "6px 10px", fontSize: "0.78rem", background: "var(--bg-color)", color: "var(--text-color)", minHeight: "34px", fontWeight: 600, border: "1px solid var(--border-color)", borderRadius: "6px" }}
               >
                 Admin
               </button>
@@ -225,7 +289,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             <button 
               onClick={() => signOut()} 
               className="btn" 
-              style={{ padding: "6px 12px", fontSize: "0.85rem", background: "#fee2e2", color: "#dc2626", minHeight: "36px", fontWeight: 600 }}
+              style={{ padding: "6px 10px", fontSize: "0.78rem", background: "#fee2e2", color: "#dc2626", minHeight: "34px", fontWeight: 600, borderRadius: "6px" }}
             >
               Salir
             </button>
@@ -233,7 +297,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         </div>
 
         {/* Fila 2: Buscador + Botón Filtros + Stats + Ajustes */}
-        <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
               type="text"
@@ -242,9 +306,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ 
-                padding: "10px 40px 10px 14px", 
-                fontSize: "0.95rem", 
-                minHeight: "44px", 
+                padding: "8px 36px 8px 12px", 
+                fontSize: "0.88rem", 
+                minHeight: "38px", 
                 background: "var(--card-bg)",
                 border: "1.5px solid var(--border-color)",
                 color: "var(--text-color)"
@@ -254,8 +318,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               <button
                 onClick={() => setSearchQuery("")}
                 style={{
-                  position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
-                  background: "none", border: "none", fontSize: "1.2rem", color: "#94a3b8", cursor: "pointer", padding: "4px"
+                  position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", fontSize: "1rem", color: "#94a3b8", cursor: "pointer", padding: "2px"
                 }}
               >
                 ✕
@@ -263,19 +327,30 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             )}
           </div>
           
-          {/* Botón Filtros */}
+          {/* Botón Filtros (🎛️ Iconoir Outline style) */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             title="Filtros avanzados"
             style={{
-              padding: "0 10px", fontSize: "0.9rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              padding: "0 8px", fontSize: "0.82rem", fontWeight: 700, borderRadius: "8px", border: "1.5px solid var(--border-color)",
               background: showFilters || activeFiltersCount > 0 ? "var(--primary-color)" : "var(--card-bg)",
               color: showFilters || activeFiltersCount > 0 ? "white" : "var(--text-color)",
-              cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", minHeight: "44px",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", minHeight: "38px",
               transition: "all 0.2s"
             }}
           >
-            🎛️ {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="21" x2="4" y2="14" />
+              <line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" />
+              <line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" />
+              <line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}
           </button>
 
           {/* Botón Estadísticas */}
@@ -283,25 +358,32 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             onClick={openStats}
             title="Estadísticas de auditoría"
             style={{
-              padding: "0 10px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              padding: "0 8px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
               background: "var(--card-bg)", color: "var(--text-color)",
-              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
+              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "38px"
             }}
           >
-            📊
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
           </button>
 
           {/* Botón Ajustes */}
           <button
             onClick={() => setShowSettingsModal(true)}
-            title="Ajustes de mapa"
+            title="Ajustes de mapa y visualización"
             style={{
-              padding: "0 10px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
+              padding: "0 8px", borderRadius: "8px", border: "1.5px solid var(--border-color)",
               background: "var(--card-bg)", color: "var(--text-color)",
-              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "44px"
+              cursor: "pointer", display: "flex", alignItems: "center", minHeight: "38px"
             }}
           >
-            ⚙️
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
           </button>
         </div>
 
@@ -418,6 +500,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             initialMapState={initialMapState}
             zoomThreshold={zoomThreshold}
             users={users}
+            markerShape={markerShape}
+            markerSize={markerSize}
           />
         </div>
 
@@ -489,72 +573,184 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       {/* MODAL DE AJUSTES (Visualización de CTOs y Temas) */}
       {showSettingsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div className="glass-panel" style={{ width: "90%", maxWidth: "450px", padding: "2rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)" }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "var(--text-color)" }}>⚙️ Ajustes</h2>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "450px", padding: "1.5rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)", maxHeight: "85vh", overflowY: "auto", position: "relative" }}>
             
+            {/* Botón de cierre en esquina superior derecha */}
+            <button 
+              type="button"
+              onClick={() => setShowSettingsModal(false)} 
+              title="Cerrar"
+              style={{ 
+                position: "absolute", top: "16px", right: "16px", background: "var(--border-color)", 
+                border: "none", borderRadius: "50%", width: "32px", height: "32px", display: "flex", 
+                alignItems: "center", justifyContent: "center", fontSize: "1.2rem", fontWeight: 700, 
+                color: "var(--text-color)", cursor: "pointer", zIndex: 10 
+              }}
+            >
+              ✕
+            </button>
+
+            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              👤 Mi Perfil y Ajustes
+            </h2>
+            
+            {/* Ficha de Información de Usuario */}
+            <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ background: "var(--primary-color)", color: "white", width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.2rem" }}>
+                  {(session?.user?.name || "T")?.[0]?.toUpperCase()}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)" }}>
+                    {session?.user?.name || "Técnico"}
+                  </span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8 }}>
+                    {session?.user?.email}
+                  </span>
+                  <span style={{ fontSize: "0.75rem", background: "var(--border-color)", color: "var(--text-color)", padding: "2px 6px", borderRadius: "4px", alignSelf: "flex-start", marginTop: "4px", fontWeight: 600 }}>
+                    {(session?.user as any)?.role || "USER"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Selector de Tema */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-color)" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
                 Tema de Color de la Página:
               </label>
-              <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px", marginTop: "8px" }}>
                 {[
                   { name: "orange", color: "#FF7900", label: "Naranja" },
                   { name: "blue", color: "#2563eb", label: "Azul" },
                   { name: "green", color: "#10b981", label: "Verde" },
                   { name: "purple", color: "#8b5cf6", label: "Morado" },
-                  { name: "dark", color: "#334155", label: "Oscuro" }
+                  { name: "dark", color: "#334155", label: "Oscuro" },
+                  { name: "indigo", color: "#4f46e5", label: "Indigo" },
+                  { name: "rose", color: "#e11d48", label: "Rosa" },
+                  { name: "teal", color: "#0d9488", label: "Teal" },
+                  { name: "amber", color: "#d97706", label: "Ámbar" },
+                  { name: "slate", color: "#475569", label: "Pizarra" }
                 ].map((t) => (
                   <button
                     key={t.name}
                     type="button"
                     onClick={() => handleThemeChange(t.name)}
+                    title={t.label}
                     style={{
-                      flex: "1 1 calc(33% - 6px)",
-                      minWidth: "70px",
-                      padding: "8px 4px",
-                      borderRadius: "8px",
-                      border: theme === t.name ? "3px solid var(--text-color)" : "1.5px solid var(--border-color)",
+                      padding: "6px 2px",
+                      borderRadius: "6px",
+                      border: theme === t.name ? "2px solid var(--text-color)" : "1.5px solid var(--border-color)",
                       background: t.name === "dark" ? "#1e293b" : "#ffffff",
-                      color: t.name === "dark" ? "#ffffff" : "#111827",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: "6px",
-                      fontWeight: 700,
-                      fontSize: "0.75rem",
-                      boxShadow: theme === t.name ? "0 0 8px rgba(0,0,0,0.15)" : "none",
+                      gap: "4px",
+                      boxShadow: theme === t.name ? "0 0 6px rgba(0,0,0,0.2)" : "none",
                       transition: "all 0.15s"
                     }}
                   >
-                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", background: t.color, display: "inline-block" }} />
-                    {t.label}
+                    <span style={{ width: "18px", height: "18px", borderRadius: "50%", background: t.color, display: "inline-block" }} />
+                    <span style={{ fontSize: "0.6rem", fontWeight: 700, color: "var(--text-color)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
+                      {t.label}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Selector de Forma de Marcador */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-color)" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+                Forma del Marcador en Mapa:
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+                {[
+                  { value: "circle", label: "Círculo" },
+                  { value: "triangle", label: "Triángulo" },
+                  { value: "square", label: "Cuadrado" },
+                  { value: "diamond", label: "Rombo" },
+                  { value: "star", label: "Estrella" }
+                ].map((shape) => (
+                  <button
+                    key={shape.value}
+                    type="button"
+                    onClick={() => handleMarkerShapeChange(shape.value)}
+                    style={{
+                      padding: "8px 4px",
+                      borderRadius: "6px",
+                      border: markerShape === shape.value ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
+                      background: "var(--card-bg)",
+                      color: "var(--text-color)",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                      fontSize: "0.7rem",
+                      textAlign: "center"
+                    }}
+                  >
+                    {shape.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Slider de Tamaño de Marcador */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <label style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+                  Tamaño de Marcador:
+                </label>
+                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--primary-color)" }}>
+                  {markerSize}px
+                </span>
+              </div>
+              <input 
+                type="range" 
+                min="4" 
+                max="12" 
+                step="1"
+                value={markerSize}
+                onChange={(e) => handleMarkerSizeChange(parseInt(e.target.value))}
+                style={{ width: "100%", height: "6px", background: "var(--border-color)", borderRadius: "4px", outline: "none", accentColor: "var(--primary-color)" }}
+              />
+            </div>
+
+            {/* Selector de Zoom */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
                 Límite de Zoom para mostrar CTOs:
               </label>
-              
               <select
                 className="input-field"
                 value={zoomThreshold}
                 onChange={(e) => handleZoomThresholdChange(parseInt(e.target.value))}
                 style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
               >
-                <option value="11">Zoom 11: Mostrar todo de lejos (Lento en móviles antiguos)</option>
+                <option value="11">Zoom 11: Mostrar todo de lejos (Lento)</option>
                 <option value="12">Zoom 12: Mostrar temprano</option>
                 <option value="13">Zoom 13: Normal / Recomendado</option>
                 <option value="14">Zoom 14: Mostrar tarde</option>
-                <option value="15">Zoom 15: Mostrar solo muy de cerca (Más rápido)</option>
+                <option value="15">Zoom 15: Mostrar solo de cerca (Rápido)</option>
               </select>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.7, marginTop: "6px", lineHeight: 1.4 }}>
-                Un nivel de zoom más bajo te permite ver más CTOs a la vez, pero puede ralentizar el rendimiento del mapa en tu dispositivo móvil.
-              </p>
+            </div>
+
+            {/* Toggle de CTOs Programadas */}
+            <div style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: "10px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-color)" }}>
+                  Mostrar CTOs Programadas
+                </span>
+                <span style={{ fontSize: "0.72rem", color: "var(--text-color)", opacity: 0.8, marginTop: "2px" }}>
+                  Ver CTOs pendientes de instalar y programadas en el mapa.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={showProgramadas}
+                onChange={(e) => handleShowProgramadasToggle(e.target.checked)}
+                style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+              />
             </div>
 
             <button 
@@ -562,7 +758,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               className="btn btn-primary"
               style={{ width: "100%" }}
             >
-              Guardar Ajustes
+              Guardar y Cerrar
             </button>
           </div>
         </div>

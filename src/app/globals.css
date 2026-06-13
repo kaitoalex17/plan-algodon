@@ -123,7 +123,22 @@ a {
   margin: 0 auto 1.5rem auto;
 }
 
-/* Temas predeterminados a nivel de página */
+/* Lock general page viewport zooming and bouncing on mobile */
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  touch-action: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* Allow scrolling on interactive modal and drawer containers */
+.cto-drawer, .glass-panel, .input-field, textarea, select, .modal-content, .scrollable-content {
+  touch-action: auto;
+}
+
+/* Temas predeterminados a nivel de página (10 Temas Premium) */
 body.theme-orange {
   --primary-color: #FF7900;
   --bg-color: #f3f4f6;
@@ -164,4 +179,45 @@ body.theme-dark {
   --border-color: #334155;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
+
+body.theme-indigo {
+  --primary-color: #4f46e5;
+  --bg-color: #f5f3ff;
+  --text-color: #1e1b4b;
+  --card-bg: #ffffff;
+  --border-color: #e0e7ff;
+}
+
+body.theme-rose {
+  --primary-color: #e11d48;
+  --bg-color: #fff1f2;
+  --text-color: #4c0519;
+  --card-bg: #ffffff;
+  --border-color: #ffe4e6;
+}
+
+body.theme-teal {
+  --primary-color: #0d9488;
+  --bg-color: #f0fdfa;
+  --text-color: #115e59;
+  --card-bg: #ffffff;
+  --border-color: #ccfbf1;
+}
+
+body.theme-amber {
+  --primary-color: #d97706;
+  --bg-color: #fffbeb;
+  --text-color: #78350f;
+  --card-bg: #ffffff;
+  --border-color: #fde68a;
+}
+
+body.theme-slate {
+  --primary-color: #475569;
+  --bg-color: #f8fafc;
+  --text-color: #0f172a;
+  --card-bg: #ffffff;
+  --border-color: #cbd5e1;
+}
+
 

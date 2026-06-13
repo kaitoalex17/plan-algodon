@@ -1,5 +1,54 @@
-import { MapContainer, TileLayer, CircleMarker, Circle, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from "react-leaflet";
 import { useState, useEffect, useRef } from "react";
+import L from "leaflet";
+
+// Función para generar iconos SVG personalizados según forma y tamaño
+function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string) {
+  const s = size * 2 + 8; // Espacio suficiente para bordes
+  const center = s / 2;
+  const radius = size;
+  
+  let svgContent = "";
+  
+  if (shape === "square") {
+    svgContent = `<rect x="${center - radius}" y="${center - radius}" width="${radius * 2}" height="${radius * 2}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" rx="1.5" />`;
+  } else if (shape === "triangle") {
+    const p1 = `${center},${center - radius}`;
+    const p2 = `${center - radius},${center + radius}`;
+    const p3 = `${center + radius},${center + radius}`;
+    svgContent = `<polygon points="${p1} ${p2} ${p3}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" stroke-linejoin="round" />`;
+  } else if (shape === "diamond") {
+    const p1 = `${center},${center - radius}`;
+    const p2 = `${center + radius},${center}`;
+    const p3 = `${center},${center + radius}`;
+    const p4 = `${center - radius},${center}`;
+    svgContent = `<polygon points="${p1} ${p2} ${p3} ${p4}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" stroke-linejoin="round" />`;
+  } else if (shape === "star") {
+    const points = [
+      [center, center - radius],
+      [center + radius * 0.24, center - radius * 0.24],
+      [center + radius * 0.95, center - radius * 0.31],
+      [center + radius * 0.38, center + radius * 0.12],
+      [center + radius * 0.59, center + radius * 0.81],
+      [center, center + radius * 0.44],
+      [center - radius * 0.59, center + radius * 0.81],
+      [center - radius * 0.38, center + radius * 0.12],
+      [center - radius * 0.95, center - radius * 0.31],
+      [center - radius * 0.24, center - radius * 0.24]
+    ].map(p => p.join(",")).join(" ");
+    svgContent = `<polygon points="${points}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" stroke-linejoin="round" />`;
+  } else {
+    // Circle por defecto
+    svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" />`;
+  }
+
+  return L.divIcon({
+    html: `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">${svgContent}</svg>`,
+    className: "custom-map-marker",
+    iconSize: [s, s],
+    iconAnchor: [center, center],
+  });
+}
 
 // Componente para manejar eventos del mapa, guardar estado de vista en BD y geolocalización
 function MapStateAndTracking({ 
@@ -43,7 +92,7 @@ function MapStateAndTracking({
       } catch (err) {
         console.error("Error guardando estado del mapa:", err);
       }
-    }, 2000); // Esperar 2 segundos de inactividad antes de guardar
+    }, 2000);
   };
 
   useMapEvents({
@@ -60,7 +109,6 @@ function MapStateAndTracking({
       return;
     }
 
-    // Activar geolocalización continua
     map.locate({ watch: true, enableHighAccuracy: true });
 
     const onLocationFound = (e: any) => {
@@ -70,7 +118,6 @@ function MapStateAndTracking({
         accuracy: e.accuracy
       });
 
-      // Si es la primera vez que se localiza, centrar mapa en el usuario
       if (firstLocationRef.current) {
         map.flyTo(e.latlng, 17);
         firstLocationRef.current = false;
@@ -95,7 +142,19 @@ function MapStateAndTracking({
 }
 
 // Marcadores de las CTOs en el mapa
-function CtoMarkers({ ctos, onCtoClick, zoomThreshold }: { ctos: any[], onCtoClick: (cto: any) => void, zoomThreshold: number }) {
+function CtoMarkers({ 
+  ctos, 
+  onCtoClick, 
+  zoomThreshold,
+  markerShape,
+  markerSize
+}: { 
+  ctos: any[], 
+  onCtoClick: (cto: any) => void, 
+  zoomThreshold: number,
+  markerShape: string,
+  markerSize: number
+}) {
   const map = useMap();
   const [bounds, setBounds] = useState<any>(null);
   const [zoom, setZoom] = useState<number>(map.getZoom());
@@ -111,7 +170,7 @@ function CtoMarkers({ ctos, onCtoClick, zoomThreshold }: { ctos: any[], onCtoCli
   
   if (zoom < zoomThreshold) {
     return (
-      <div style={{ position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 1000, background: "rgba(255,255,255,0.95)", padding: "8px 20px", borderRadius: "20px", fontSize: "14px", fontWeight: 600, boxShadow: "0 2px 10px rgba(0,0,0,0.1)", border: "1px solid #FF790040" }}>
+      <div style={{ position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 1000, background: "rgba(255,255,255,0.95)", padding: "8px 20px", borderRadius: "20px", fontSize: "14px", fontWeight: 600, boxShadow: "0 2px 10px rgba(0,0,0,0.1)", border: "1px solid #FF790040", color: "#111827" }}>
         Acércate para ver las CTOs (Zoom {zoom} / {zoomThreshold})
       </div>
     );
@@ -124,151 +183,104 @@ function CtoMarkers({ ctos, onCtoClick, zoomThreshold }: { ctos: any[], onCtoCli
 
   return (
     <>
-      {visibleCtos.map(cto => (
-        <CircleMarker 
-          key={cto.id}
-          center={[cto.lat, cto.lng]}
-          radius={6}
-          pathOptions={{ 
-            color: cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444"), 
-            fillColor: cto.assignedTo?.color || "#ffffff", 
-            fillOpacity: 1,
-            weight: 2
-          }}
-          eventHandlers={{
-            click: () => onCtoClick(cto)
-          }}
-        />
-      ))}
+      {visibleCtos.map(cto => {
+        // Asignar color de borde basado en subestado o estado (incluyendo soporte para REVISADO en verde)
+        const borderColor = cto.subStatus?.color || (
+          cto.status === "PENDIENTE" ? "#808080" : 
+          (cto.status === "CORRECTO" || cto.status === "REVISADO") ? "#10b981" : 
+          "#ef4444"
+        );
+        const fillColor = cto.assignedTo?.color || "#ffffff";
+
+        return (
+          <Marker 
+            key={cto.id}
+            position={[cto.lat, cto.lng]}
+            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor)}
+            eventHandlers={{
+              click: () => onCtoClick(cto)
+            }}
+          />
+        );
+      })}
     </>
   );
 }
 
-// Botones flotantes de localización (GPS)
-function GpsControls({ 
-  isTracking, 
-  setIsTracking,
-  userLocation
-}: { 
-  isTracking: boolean, 
-  setIsTracking: (t: boolean) => void,
-  userLocation: any
-}) {
-  const map = useMap();
-
-  const centerOnUser = () => {
-    if (userLocation) {
-      map.flyTo([userLocation.lat, userLocation.lng], 17);
-    }
-  };
-
+// Leyenda del Mapa (Colores de estados y técnicos)
+function MapLegend({ users, showLegend, setShowLegend }: { users: any[], showLegend: boolean, setShowLegend: (v: boolean) => void }) {
   return (
-    <div style={{ position: "absolute", bottom: "75px", right: "20px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
-      
-      {/* Botón centrar en mi posición */}
-      {isTracking && userLocation && (
-        <button 
-          onClick={centerOnUser}
-          title="Centrar en mi ubicación"
-          style={{
-            background: "white", border: "1px solid #cbd5e1", padding: "10px", borderRadius: "50%",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)", cursor: "pointer", width: "50px", height: "50px",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px"
-          }}
-        >
-          🎯
-        </button>
-      )}
-
-      {/* Botón Activar/Desactivar GPS Continuo */}
+    <div style={{ position: "absolute", bottom: "16px", left: "16px", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+      {/* Botón Info Circle */}
       <button 
-        onClick={() => setIsTracking(!isTracking)}
-        title={isTracking ? "Desactivar GPS" : "Activar GPS"}
+        onClick={() => setShowLegend(!showLegend)}
+        title="Leyenda de colores"
         style={{
-          background: isTracking ? "#FF7900" : "white", 
-          border: isTracking ? "none" : "1px solid #cbd5e1", 
-          padding: "10px", borderRadius: "50%",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.2)", cursor: "pointer", width: "50px", height: "50px",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px",
-          transition: "all 0.2s",
-          position: "relative"
+          width: "40px", height: "40px", borderRadius: "50%", background: "white",
+          border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          color: "#475569", transition: "transform 0.15s"
         }}
       >
-        🛰️
-        {isTracking && (
-          <span style={{
-            position: "absolute", top: "2px", right: "2px", width: "12px", height: "12px", 
-            borderRadius: "50%", background: "#10b981", border: "2px solid white",
-            animation: "pulse 1.5s infinite"
-          }} />
-        )}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
       </button>
 
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(0.95); opacity: 0.8; }
-          50% { transform: scale(1.1); opacity: 1; }
-          100% { transform: scale(0.95); opacity: 0.8; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// Leyenda del Mapa (Colores de estados y técnicos)
-function MapLegend({ users }: { users: any[] }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div style={{
-      position: "absolute", bottom: "75px", left: "20px", zIndex: 1000,
-      background: "white", padding: open ? "12px" : "8px 12px", borderRadius: "10px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0",
-      maxWidth: "250px", transition: "all 0.2s"
-    }}>
-      <div 
-        onClick={() => setOpen(!open)}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", gap: "8px" }}
-      >
-        <span>📖 Leyenda de Colores</span>
-        <span>{open ? "▼" : "▲"}</span>
-      </div>
-
-      {open && (
-        <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
-          {/* Estados (Bordes) */}
-          <div>
-            <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Borde (Estado)</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #808080", background: "white" }} />
-                <span>Pendiente</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #10b981", background: "white" }} />
-                <span>Correcto</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", background: "white" }} />
-                <span>Fallo</span>
-              </div>
-            </div>
+      {showLegend && (
+        <div style={{
+          position: "absolute", bottom: "48px", left: "0",
+          background: "white", padding: "12px", borderRadius: "10px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0",
+          width: "220px", display: "flex", flexDirection: "column", gap: "10px", zIndex: 1001
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b" }}>Leyenda de Colores</span>
+            <button 
+              onClick={() => setShowLegend(false)}
+              style={{ background: "none", border: "none", fontSize: "0.9rem", color: "#94a3b8", cursor: "pointer" }}
+            >
+              ✕
+            </button>
           </div>
 
-          {/* Técnicos (Relleno) */}
-          <div>
-            <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Relleno (Asignación)</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem", maxHeight: "120px", overflowY: "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: "#ffffff" }} />
-                <span>Sin asignar</span>
-              </div>
-              {users.map((u, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: u.color }} />
-                  <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "180px" }}>{u.name || u.email}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+            {/* Estados */}
+            <div>
+              <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Borde (Estado)</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem", color: "#334155" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #808080", background: "white" }} />
+                  <span>Pendiente</span>
                 </div>
-              ))}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #10b981", background: "white" }} />
+                  <span>Correcto / Revisado</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", background: "white" }} />
+                  <span>Fallo</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Técnicos */}
+            <div>
+              <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Relleno (Asignación)</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.8rem", maxHeight: "100px", overflowY: "auto", color: "#334155" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: "#ffffff" }} />
+                  <span>Sin asignar</span>
+                </div>
+                {users.map((u, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "1px solid #cbd5e1", background: u.color }} />
+                    <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "150px" }}>{u.name || u.email}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -282,117 +294,198 @@ export default function Map({
   onCtoClick,
   initialMapState,
   zoomThreshold = 12,
-  users = []
+  users = [],
+  markerShape = "circle",
+  markerSize = 6
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void,
   initialMapState?: any,
   zoomThreshold?: number,
-  users?: any[]
+  users?: any[],
+  markerShape?: string,
+  markerSize?: number
 }) {
-  // Google Maps Normal por defecto: vt/lyrs=m
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
   const [showMapTypes, setShowMapTypes] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   
   // Estados de Geolocalización
   const [isTracking, setIsTracking] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number, accuracy: number } | null>(null);
 
+  const mapRef = useRef<any>(null);
+
+  const handleCenterOnUser = () => {
+    if (userLocation && mapRef.current) {
+      mapRef.current.flyTo([userLocation.lat, userLocation.lng], 17);
+    }
+  };
+
   return (
-    <MapContainer 
-      center={[initialMapState?.lat || 36.425, initialMapState?.lng || -5.144]} 
-      zoom={initialMapState?.zoom || 14} 
-      className="map-container" 
-      zoomControl={false}
-    >
-      <TileLayer url={tileUrl} />
-      
-      {/* Selector de tipo de mapa simplificado (Icono + Popover) */}
-      <div style={{ position: "absolute", top: "80px", right: "10px", zIndex: 1000 }}>
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <MapContainer 
+        center={[initialMapState?.lat || 36.425, initialMapState?.lng || -5.144]} 
+        zoom={initialMapState?.zoom || 14} 
+        className="map-container" 
+        zoomControl={false}
+        maxZoom={21}
+        ref={mapRef}
+      >
+        <TileLayer url={tileUrl} maxZoom={21} maxNativeZoom={21} />
+        
+        {/* Marcador del Usuario (GPS) */}
+        {isTracking && userLocation && (
+          <>
+            <Circle 
+              center={[userLocation.lat, userLocation.lng]} 
+              radius={userLocation.accuracy} 
+              pathOptions={{ fillColor: "#3b82f6", fillOpacity: 0.15, color: "#3b82f6", weight: 1 }} 
+            />
+            <Marker 
+              position={[userLocation.lat, userLocation.lng]} 
+              icon={L.divIcon({
+                html: `<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="3" /><circle cx="12" cy="12" r="12" fill="#3b82f6" fill-opacity="0.2" /></svg>`,
+                className: "user-location-marker",
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+              })}
+            />
+          </>
+        )}
+
+        {/* Marcadores de CTOs */}
+        <CtoMarkers 
+          ctos={ctos} 
+          onCtoClick={onCtoClick} 
+          zoomThreshold={zoomThreshold} 
+          markerShape={markerShape}
+          markerSize={markerSize}
+        />
+
+        {/* Lógica de estado y rastreador en el mapa */}
+        <MapStateAndTracking 
+          initialMapState={initialMapState} 
+          isTracking={isTracking} 
+          onLocationUpdate={setUserLocation} 
+          userLocation={userLocation}
+        />
+
+        {/* Leyenda del mapa */}
+        <MapLegend users={users} showLegend={showLegend} setShowLegend={setShowLegend} />
+      </MapContainer>
+
+      {/* Controles del Mapa Agrupados a la Izquierda en Pila Vertical */}
+      <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
+        
+        {/* Botón GPS Tracking (🛰️) */}
         <button 
-          onClick={() => setShowMapTypes(!showMapTypes)}
+          onClick={() => setIsTracking(!isTracking)}
+          title={isTracking ? "Desactivar GPS" : "Activar GPS"}
           style={{
-            width: "44px", height: "44px", borderRadius: "50%", background: "white",
+            width: "44px", height: "44px", borderRadius: "50%", background: isTracking ? "var(--primary-color)" : "white",
             border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", cursor: "pointer",
-            transition: "transform 0.2s"
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            color: isTracking ? "white" : "#475569", transition: "all 0.2s", position: "relative"
           }}
-          title="Cambiar capa de mapa"
         >
-          🗺️
+          {/* Icono Location Arrow */}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 22l10-6 10 6L12 2z" />
+          </svg>
+          {isTracking && (
+            <span style={{
+              position: "absolute", top: "2px", right: "2px", width: "10px", height: "10px", 
+              borderRadius: "50%", background: "#10b981", border: "2px solid white",
+              animation: "pulse 1.5s infinite"
+            }} />
+          )}
         </button>
 
-        {showMapTypes && (
-          <div style={{
-            position: "absolute", right: "50px", top: "0", background: "white",
-            border: "1.5px solid #cbd5e1", borderRadius: "12px", padding: "8px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: "6px",
-            minWidth: "160px", zIndex: 1001
-          }}>
-            {[
-              { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
-              { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
-              { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },
-              { value: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", label: "OpenStreetMap" }
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  setTileUrl(opt.value);
-                  setShowMapTypes(false);
-                }}
-                style={{
-                  background: tileUrl === opt.value ? "#FF7900" : "transparent",
-                  color: tileUrl === opt.value ? "white" : "#111827",
-                  border: "none", borderRadius: "6px", padding: "8px 12px", textAlign: "left",
-                  fontSize: "0.85rem", fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+        {/* Botón Centrar en mi Posición (🎯) */}
+        {isTracking && userLocation && (
+          <button 
+            onClick={handleCenterOnUser}
+            title="Centrar en mi ubicación"
+            style={{
+              width: "44px", height: "44px", borderRadius: "50%", background: "white",
+              border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              color: "#475569"
+            }}
+          >
+            {/* Icono Crosshair */}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="6" y2="12" />
+              <line x1="18" y1="12" x2="22" y2="12" />
+              <line x1="12" y1="2" x2="12" y2="6" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+            </svg>
+          </button>
         )}
+
+        {/* Selector de Tipo de Mapa Popover a la Derecha (🗺️) */}
+        <div style={{ position: "relative" }}>
+          <button 
+            onClick={() => setShowMapTypes(!showMapTypes)}
+            style={{
+              width: "44px", height: "44px", borderRadius: "50%", background: "white",
+              border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              color: "#475569"
+            }}
+            title="Cambiar capa de mapa"
+          >
+            {/* Icono Layers */}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </button>
+
+          {showMapTypes && (
+            <div style={{
+              position: "absolute", left: "52px", top: "0", background: "white",
+              border: "1.5px solid #cbd5e1", borderRadius: "12px", padding: "8px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: "6px",
+              minWidth: "160px", zIndex: 1001
+            }}>
+              {[
+                { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
+                { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
+                { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },
+                { value: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", label: "OpenStreetMap" }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setTileUrl(opt.value);
+                    setShowMapTypes(false);
+                  }}
+                  style={{
+                    background: tileUrl === opt.value ? "var(--primary-color)" : "transparent",
+                    color: tileUrl === opt.value ? "white" : "#111827",
+                    border: "none", borderRadius: "6px", padding: "8px 12px", textAlign: "left",
+                    fontSize: "0.85rem", fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Marcador del Usuario (GPS) */}
-      {isTracking && userLocation && (
-        <>
-          {/* Círculo de precisión azul claro */}
-          <Circle 
-            center={[userLocation.lat, userLocation.lng]} 
-            radius={userLocation.accuracy} 
-            pathOptions={{ fillColor: "#3b82f6", fillOpacity: 0.15, color: "#3b82f6", weight: 1 }} 
-          />
-          {/* Punto azul del usuario */}
-          <CircleMarker 
-            center={[userLocation.lat, userLocation.lng]} 
-            radius={10} 
-            pathOptions={{ fillColor: "#3b82f6", fillOpacity: 1, color: "white", weight: 3 }} 
-          />
-        </>
-      )}
-
-      {/* Marcadores de CTOs */}
-      <CtoMarkers ctos={ctos} onCtoClick={onCtoClick} zoomThreshold={zoomThreshold} />
-
-      {/* Lógica de estado y rastreador en el mapa */}
-      <MapStateAndTracking 
-        initialMapState={initialMapState} 
-        isTracking={isTracking} 
-        onLocationUpdate={setUserLocation} 
-        userLocation={userLocation}
-      />
-
-      {/* Controles de GPS */}
-      <GpsControls 
-        isTracking={isTracking} 
-        setIsTracking={setIsTracking} 
-        userLocation={userLocation}
-      />
-
-      {/* Leyenda del mapa */}
-      <MapLegend users={users} />
-    </MapContainer>
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(0.95); opacity: 0.8; }
+          50% { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(0.95); opacity: 0.8; }
+        }
+      `}</style>
+    </div>
   );
 }

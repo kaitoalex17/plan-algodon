@@ -22,7 +22,11 @@ model User {
   lastZoom      Int?
   zoomThreshold Int       @default(12)
   theme         String    @default("orange")
+  markerShape   String    @default("circle")
+  markerSize    Int       @default(6)
+  showProgramadas Boolean @default(true)
   assignedCTOs  CTO[]     @relation("AssignedTo")
+  createdCTOs   CTO[]     @relation("CreatedBy")
   comments      Comment[]
   history       History[]
   accounts      Account[]
@@ -75,6 +79,10 @@ model CTO {
   colocacion     String?
   fechaAgregacion DateTime?
   notas          String?
+  category       String    @default("AUDITORIA") // AUDITORIA, PROGRAMADA
+  createdById    String?
+  createdBy      User?     @relation("CreatedBy", fields: [createdById], references: [id])
+  createdInField Boolean   @default(false)
   
   // Datos específicos de auditoría de fibra
   puertosTotal      Int?      @default(16)
@@ -97,10 +105,11 @@ model CTO {
 }
 
 model SubStatus {
-  id    String @id @default(cuid())
-  name  String
-  color String @default("#808080")
-  ctos  CTO[]
+  id       String @id @default(cuid())
+  name     String
+  color    String @default("#808080")
+  category String @default("AUDITORIA") // AUDITORIA, PROGRAMADA
+  ctos     CTO[]
 }
 
 model Comment {
@@ -137,4 +146,9 @@ model Alert {
   createdAt DateTime @default(now())
   ctoId     String
   cto       CTO      @relation(fields: [ctoId], references: [id], onDelete: Cascade)
+}
+
+model Setting {
+  key   String @id
+  value String
 }

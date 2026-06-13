@@ -12,13 +12,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const { id } = await params;
-    const { name, color } = await req.json();
+    const { name, color, category } = await req.json();
 
     const subStatus = await prisma.subStatus.update({
       where: { id },
       data: {
         name,
-        color
+        color,
+        category
       }
     });
 
