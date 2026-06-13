@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import * as XLSX from "xlsx";
 
 export async function GET() {
   try {
@@ -18,18 +19,7 @@ export async function GET() {
       orderBy: { num: "asc" }
     });
 
-    // Función auxiliar para escapar campos CSV
-    const escapeCsv = (val: any) => {
-      if (val === null || val === undefined) return "";
-      let str = String(val).trim();
-      // Si contiene comillas, comas, saltos de línea o retornos de carro, envolver en comillas
-      if (/[",\n\r]/.test(str)) {
-        str = `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    // Encabezados del CSV
+    // Encabezados del Excel
     const headers = [
       "Número",
       "Número Nuevo",
@@ -51,34 +41,38 @@ export async function GET() {
 
     // Construir filas
     const rows = ctos.map(cto => [
-      escapeCsv(cto.num),
-      escapeCsv(cto.numeroNuevo),
-      escapeCsv(cto.municipio),
-      escapeCsv(cto.colocacion),
-      escapeCsv(cto.coordenadas),
-      escapeCsv(cto.lat),
-      escapeCsv(cto.lng),
-      escapeCsv(cto.status),
-      escapeCsv(cto.subStatus?.name),
-      escapeCsv(cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : ""),
-      escapeCsv(cto.puertosTotal),
-      escapeCsv(cto.puertosOcupados),
-      escapeCsv(cto.potenciaDbm),
-      escapeCsv(cto.cierreSeguridad ? "OK" : "INCORRECTO"),
-      escapeCsv(cto.etiquetadoCorrecto ? "SÍ" : "NO"),
-      escapeCsv(cto.notas)
+      cto.num || "",
+      cto.numeroNuevo || "",
+      cto.municipio || "",
+      cto.colocacion || "",
+      cto.coordenadas || "",
+      cto.lat || 0,
+      cto.lng || 0,
+      cto.status || "PENDIENTE",
+      cto.subStatus?.name || "",
+      cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : "",
+      cto.puertosTotal !== null ? cto.puertosTotal : "",
+      cto.puertosOcupados !== null ? cto.puertosOcupados : "",
+      cto.potenciaDbm !== null ? cto.potenciaDbm : "",
+      cto.cierreSeguridad ? "OK" : "INCORRECTO",
+      cto.etiquetadoCorrecto ? "SÍ" : "NO",
+      cto.notas || ""
     ]);
 
-    // Añadir el BOM de UTF-8 para que Excel detecte correctamente los acentos y la eñe
-    const BOM = "\uFEFF";
-    const csvContent = BOM + [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
+    // Crear libro y hoja con XLSX (SheetJS)
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, "CTOs Auditadas");
 
-    // Retornar archivo CSV como descarga directa
-    return new Response(csvContent, {
+    // Escribir a un buffer binario
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    // Retornar archivo Excel (.xlsx) como descarga directa
+    return new Response(buffer, {
       status: 200,
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": "attachment; filename=ctos_auditadas.csv"
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": "attachment; filename=ctos_auditadas.xlsx"
       }
     });
   } catch (error: any) {
