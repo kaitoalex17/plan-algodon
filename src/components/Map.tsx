@@ -289,6 +289,16 @@ function MapLegend({ users, showLegend, setShowLegend }: { users: any[], showLeg
   );
 }
 
+function ChangeMapView({ centerCoords }: { centerCoords: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (centerCoords) {
+      map.flyTo(centerCoords, 18);
+    }
+  }, [centerCoords, map]);
+  return null;
+}
+
 export default function Map({ 
   ctos, 
   onCtoClick,
@@ -296,7 +306,8 @@ export default function Map({
   zoomThreshold = 12,
   users = [],
   markerShape = "circle",
-  markerSize = 6
+  markerSize = 6,
+  centerCoords = null
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void,
@@ -304,7 +315,8 @@ export default function Map({
   zoomThreshold?: number,
   users?: any[],
   markerShape?: string,
-  markerSize?: number
+  markerSize?: number,
+  centerCoords?: [number, number] | null
 }) {
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
   const [showMapTypes, setShowMapTypes] = useState(false);
@@ -373,6 +385,9 @@ export default function Map({
 
         {/* Leyenda del mapa */}
         <MapLegend users={users} showLegend={showLegend} setShowLegend={setShowLegend} />
+        
+        {/* Cambiar vista del mapa al buscar */}
+        <ChangeMapView centerCoords={centerCoords} />
       </MapContainer>
 
       {/* Controles del Mapa Agrupados a la Izquierda en Pila Vertical */}

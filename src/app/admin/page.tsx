@@ -15,6 +15,7 @@ export default function AdminPage() {
   
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [deletingImages, setDeletingImages] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -61,6 +62,34 @@ export default function AdminPage() {
       alert("Error en el servidor al guardar.");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleDeleteAllImages = async () => {
+    if (!confirm("⚠️ ¡PELIGRO! ¿Estás completamente seguro de que deseas eliminar TODAS las evidencias fotográficas? Esta acción no se puede deshacer y borrará todas las fotos físicas del servidor y de la base de datos.")) {
+      return;
+    }
+    const confirmText = prompt("Escribe 'ELIMINAR TODO' para confirmar esta acción:");
+    if (confirmText !== "ELIMINAR TODO") {
+      alert("Confirmación incorrecta. Acción cancelada.");
+      return;
+    }
+
+    setDeletingImages(true);
+    try {
+      const res = await fetch("/api/admin/delete-all-images", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Se han eliminado con éxito ${data.count || 0} imágenes de la base de datos y del disco.`);
+        window.location.reload();
+      } else {
+        alert("Error al intentar eliminar las evidencias.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor.");
+    } finally {
+      setDeletingImages(false);
     }
   };
 

@@ -36,6 +36,10 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [activeView, setActiveView] = useState<"map" | "list">("map");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const [centerCoords, setCenterCoords] = useState<[number, number] | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isPwaInstallable, setIsPwaInstallable] = useState(false);
+
   // Ajustes de visualización (persisten en la base de datos de usuario)
   const [zoomThreshold, setZoomThreshold] = useState(initialMapState?.zoomThreshold || 12);
   const [theme, setTheme] = useState(initialMapState?.theme || "orange");
@@ -146,6 +150,21 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       setZoomThreshold(parseInt(savedThreshold));
     }
 
+    // Cargar vista guardada y filtros de localStorage
+    const savedView = localStorage.getItem("active_view");
+    if (savedView === "map" || savedView === "list") {
+      setActiveView(savedView as "map" | "list");
+    }
+    const savedStatus = localStorage.getItem("filter_status") || "";
+    const savedSubStatus = localStorage.getItem("filter_sub_status") || "";
+    const savedAssigned = localStorage.getItem("filter_assigned") || "";
+    const savedSearch = localStorage.getItem("search_query") || "";
+
+    setFilterStatus(savedStatus);
+    setFilterSubStatus(savedSubStatus);
+    setFilterAssigned(savedAssigned);
+    setSearchQuery(savedSearch);
+
     // Registrar Service Worker para soporte PWA
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js")
@@ -153,6 +172,63 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         .catch((err) => console.error("Error al registrar Service Worker:", err));
     }
   }, [fetchFilterOptions, initialMapState]);
+
+  // Escuchar evento de instalación de la PWA
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsPwaInstallable(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  // Centrar mapa en CTO buscada tras 2 segundos de inactividad al escribir
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
+
+    const timer = setTimeout(() => {
+      const query = searchQuery.toLowerCase().trim();
+      const matched = ctos.find(c => 
+        c.num.toLowerCase().includes(query) ||
+        (c.numeroNuevo && c.numeroNuevo.toLowerCase().includes(query))
+      );
+
+      if (matched) {
+        setCenterCoords([matched.lat, matched.lng]);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, ctos]);
+
+  const handleActiveViewChange = (view: "map" | "list") => {
+    setActiveView(view);
+    localStorage.setItem("active_view", view);
+  };
+
+  const handleSearchQueryChange = (val: string) => {
+    setSearchQuery(val);
+    localStorage.setItem("search_query", val);
+  };
+
+  const handleFilterStatusChange = (val: string) => {
+    setFilterStatus(val);
+    localStorage.setItem("filter_status", val);
+  };
+
+  const handleFilterSubStatusChange = (val: string) => {
+    setFilterSubStatus(val);
+    localStorage.setItem("filter_sub_status", val);
+  };
+
+  const handleFilterAssignedChange = (val: string) => {
+    setFilterAssigned(val);
+    localStorage.setItem("filter_assigned", val);
+  };
 
   // Cargar estadísticas
   const fetchStats = async () => {
@@ -203,6 +279,10 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     setFilterSubStatus("");
     setFilterAssigned("");
     setSearchQuery("");
+    localStorage.removeItem("filter_status");
+    localStorage.removeItem("filter_sub_status");
+    localStorage.removeItem("filter_assigned");
+    localStorage.removeItem("search_query");
   };
 
   // Filtrar CTOs dinámicamente según búsqueda y filtros avanzados
@@ -316,7 +396,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               className="input-field"
               placeholder="Buscar..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchQueryChange(e.target.value)}
               style={{ 
                 padding: "8px 36px 8px 32px", 
                 fontSize: "0.88rem", 
@@ -328,7 +408,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={() => handleSearchQueryChange("")}
                 style={{
                   position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
                   background: "none", border: "none", fontSize: "1rem", color: "#94a3b8", cursor: "pointer", padding: "2px"
@@ -412,7 +492,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <select 
                   className="input-field" 
                   value={filterStatus} 
-                  onChange={e => setFilterStatus(e.target.value)}
+                  onChange={e => handleFilterStatusChange(e.target.value)}
                   style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 >
                   <option value="">Todos</option>
@@ -428,7 +508,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <select 
                   className="input-field" 
                   value={filterSubStatus} 
-                  onChange={e => setFilterSubStatus(e.target.value)}
+                  onChange={e => handleFilterSubStatusChange(e.target.value)}
                   style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 >
                   <option value="">Todos</option>
@@ -446,7 +526,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               <select 
                 className="input-field" 
                 value={filterAssigned} 
-                onChange={e => setFilterAssigned(e.target.value)}
+                onChange={e => handleFilterAssignedChange(e.target.value)}
                 style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
               >
                 <option value="">Todos los técnicos</option>
@@ -476,7 +556,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         {/* Fila 3: Selector de Vista (Mapa vs Lista) - Diseño Premium Táctil */}
         <div style={{ display: "flex", background: "var(--bg-color)", borderRadius: "10px", padding: "4px" }}>
           <button
-            onClick={() => setActiveView("map")}
+            onClick={() => handleActiveViewChange("map")}
             style={{
               flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
               background: activeView === "map" ? "var(--primary-color)" : "transparent",
@@ -494,7 +574,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             Vista Mapa ({filteredCtos.length})
           </button>
           <button
-            onClick={() => setActiveView("list")}
+            onClick={() => handleActiveViewChange("list")}
             style={{
               flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
               background: activeView === "list" ? "var(--primary-color)" : "transparent",
@@ -533,6 +613,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             users={users}
             markerShape={markerShape}
             markerSize={markerSize}
+            centerCoords={centerCoords}
           />
         </div>
 
@@ -786,6 +867,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 onChange={(e) => handleShowProgramadasToggle(e.target.checked)}
                 style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary-color)" }}
               />
+            </div>
+
+            {/* Menú de Instalación de PWA */}
+            <div style={{ marginBottom: "1.5rem", padding: "12px", background: "var(--bg-color)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-color)", display: "block" }}>
+                Aplicación Móvil (PWA)
+              </span>
+              <p style={{ fontSize: "0.72rem", color: "var(--text-color)", opacity: 0.8, marginTop: "2.5px", marginBottom: "8px" }}>
+                Instala Plan Algodón en la pantalla de tu móvil para usarlo como una app nativa.
+              </p>
+              {isPwaInstallable ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!deferredPrompt) return;
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === "accepted") {
+                      setDeferredPrompt(null);
+                      setIsPwaInstallable(false);
+                    }
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: "100%", minHeight: "38px", padding: "6px 12px", fontSize: "0.85rem" }}
+                >
+                  Instalar Aplicación
+                </button>
+              ) : (
+                <div style={{ fontSize: "0.72rem", background: "var(--card-bg)", padding: "8px", borderRadius: "6px", border: "1px dashed var(--border-color)", color: "var(--text-color)", opacity: 0.8 }}>
+                  💡 Para iOS (iPhone) o si el botón no aparece: Pulsa el botón <strong>Compartir</strong> en Safari y selecciona <strong>"Añadir a pantalla de inicio"</strong>.
+                </div>
+              )}
             </div>
 
             <button 

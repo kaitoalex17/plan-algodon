@@ -45,6 +45,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [showGallery, setShowGallery] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
   const [cacheKey, setCacheKey] = useState(Date.now());
+  const [zoomScale, setZoomScale] = useState(1);
 
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
@@ -292,7 +293,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
           <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>CTO: {cto.num}</h2>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+              CTO: {cto.num}
+              <span style={{ fontSize: "0.85rem", fontWeight: 600, opacity: 0.8, color: "var(--text-color)", display: "block", marginTop: "4px" }}>
+                👤 {details?.assignedTo ? `Asignada a: ${details.assignedTo.name || details.assignedTo.email}` : (cto.assignedTo ? `Asignada a: ${cto.assignedTo.name || cto.assignedTo.email}` : "Sin asignar")}
+              </span>
+            </h2>
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
               {cto.numeroNuevo && <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>Nº Nuevo: {cto.numeroNuevo}</span>}
               <span style={{ fontSize: "0.75rem", background: "var(--border-color)", color: "var(--text-color)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
@@ -509,6 +515,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <div 
                         key={img.id} 
                         onClick={() => {
+                          setZoomScale(1);
                           setShowGallery(true);
                           setActiveImgIndex(idx);
                         }} 
@@ -771,7 +778,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 {details.images.map((img: any, idx: number) => (
                   <div
                     key={img.id}
-                    onClick={() => setActiveImgIndex(idx)}
+                    onClick={() => {
+                      setZoomScale(1);
+                      setActiveImgIndex(idx);
+                    }}
                     style={{ position: "relative", cursor: "pointer", borderRadius: "8px", overflow: "hidden", border: "1.5px solid var(--border-color)", aspectRatio: "1/1" }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -815,26 +825,39 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
             {/* Arrow Left */}
             <button
               type="button"
-              onClick={() => setActiveImgIndex(prev => (prev !== null && prev > 0 ? prev - 1 : (details.images.length - 1)))}
+              onClick={() => {
+                setZoomScale(1);
+                setActiveImgIndex(prev => (prev !== null && prev > 0 ? prev - 1 : (details.images.length - 1)));
+              }}
               style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
             >
               ◀
             </button>
 
             {/* Image Container */}
-            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%", position: "relative" }}>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%", position: "relative", overflow: "hidden" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${details.images[activeImgIndex].url}?t=${cacheKey}`}
                 alt="Visor"
-                style={{ maxHeight: "80vh", maxWidth: "100%", objectFit: "contain", borderRadius: "8px", transition: "transform 0.2s" }}
+                style={{ 
+                  maxHeight: "80vh", 
+                  maxWidth: "100%", 
+                  objectFit: "contain", 
+                  borderRadius: "8px", 
+                  transition: "transform 0.2s",
+                  transform: `scale(${zoomScale})`
+                }}
               />
             </div>
 
             {/* Arrow Right */}
             <button
               type="button"
-              onClick={() => setActiveImgIndex(prev => (prev !== null && prev < details.images.length - 1 ? prev + 1 : 0))}
+              onClick={() => {
+                setZoomScale(1);
+                setActiveImgIndex(prev => (prev !== null && prev < details.images.length - 1 ? prev + 1 : 0));
+              }}
               style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
             >
               ▶
@@ -842,7 +865,53 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           </div>
 
           {/* Action Footer (Rotate, Delete, Download) */}
-          <div style={{ display: "flex", justifyContent: "center", gap: "24px", padding: "24px 16px", background: "rgba(0,0,0,0.8)", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "24px", padding: "24px 16px", background: "rgba(0,0,0,0.8)", borderTop: "1px solid rgba(255,255,255,0.1)", flexWrap: "wrap" }}>
+            {/* Zoom Out */}
+            <button
+              type="button"
+              onClick={() => setZoomScale(prev => Math.max(prev - 0.5, 1))}
+              title="Alejar Zoom"
+              style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Zoom -</span>
+            </button>
+
+            {/* Reset Zoom */}
+            <button
+              type="button"
+              onClick={() => setZoomScale(1)}
+              title="Restablecer Zoom"
+              style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Ajustar</span>
+            </button>
+
+            {/* Zoom In */}
+            <button
+              type="button"
+              onClick={() => setZoomScale(prev => Math.min(prev + 0.5, 4))}
+              title="Acercar Zoom"
+              style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Zoom +</span>
+            </button>
+
+            <span style={{ width: "1px", background: "rgba(255,255,255,0.2)", margin: "0 10px" }} />
+
             {/* Rotar Izquierda */}
             <button
               type="button"
