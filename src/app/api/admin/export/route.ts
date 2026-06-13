@@ -11,15 +11,24 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Obtener todas las CTOs con asignaciones, subestados y el último registro en historial
     const ctos = await prisma.cTO.findMany({
       include: {
         assignedTo: { select: { name: true, email: true } },
-        subStatus: { select: { name: true } }
+        subStatus: { select: { name: true } },
+        history: {
+          orderBy: { timestamp: "desc" },
+          take: 1
+        }
       },
       orderBy: { num: "asc" }
     });
 
-    // Encabezados del Excel
+    // Dividir en categorías (Auditoría vs Programadas/Planeadas)
+    const auditoriaCtos = ctos.filter(c => c.category !== "PROGRAMADA");
+    const planeadasCtos = ctos.filter(c => c.category === "PROGRAMADA");
+
+    // Encabezados del Excel modificados (sin puertos, potencia, cierre ni etiquetado; con Fecha/Hora Auditoría)
     const headers = [
       "Número",
       "Número Nuevo",
@@ -31,38 +40,49 @@ export async function GET() {
       "Estado",
       "Subestado",
       "Asignado a",
-      "Puertos Totales",
-      "Puertos Ocupados",
-      "Potencia (dBm)",
-      "Cierre Seguridad",
-      "Etiquetado Correcto",
+      "Fecha y Hora Auditoría",
       "Notas"
     ];
 
-    // Construir filas
-    const rows = ctos.map(cto => [
-      cto.num || "",
-      cto.numeroNuevo || "",
-      cto.municipio || "",
-      cto.colocacion || "",
-      cto.coordenadas || "",
-      cto.lat || 0,
-      cto.lng || 0,
-      cto.status || "PENDIENTE",
-      cto.subStatus?.name || "",
-      cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : "",
-      cto.puertosTotal !== null ? cto.puertosTotal : "",
-      cto.puertosOcupados !== null ? cto.puertosOcupados : "",
-      cto.potenciaDbm !== null ? cto.potenciaDbm : "",
-      cto.cierreSeguridad ? "OK" : "INCORRECTO",
-      cto.etiquetadoCorrecto ? "SÍ" : "NO",
-      cto.notas || ""
-    ]);
+    const mapCtoToRow = (cto: any) => {
+      let auditDate = "No auditado";
+      if (cto.status !== "PENDIENTE") {
+        if (cto.history && cto.history.length > 0) {
+          // Formatear fecha a formato español local
+          auditDate = new Date(cto.history[0].timestamp).toLocaleString("es-ES", { timeZone: "Europe/Madrid" });
+        } else {
+          auditDate = "Auditado (Fecha N/A)";
+        }
+      }
 
-    // Crear libro y hoja con XLSX (SheetJS)
+      return [
+        cto.num || "",
+        cto.numeroNuevo || "",
+        cto.municipio || "",
+        cto.colocacion || "",
+        cto.coordenadas || "",
+        cto.lat || 0,
+        cto.lng || 0,
+        cto.status || "PENDIENTE",
+        cto.subStatus?.name || "",
+        cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : "",
+        auditDate,
+        cto.notas || ""
+      ];
+    };
+
+    // Crear libro con XLSX (SheetJS)
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    XLSX.utils.book_append_sheet(wb, ws, "CTOs Auditadas");
+
+    // 1. Pestaña CTOs Auditoría
+    const auditoriaRows = auditoriaCtos.map(mapCtoToRow);
+    const wsAuditoria = XLSX.utils.aoa_to_sheet([headers, ...auditoriaRows]);
+    XLSX.utils.book_append_sheet(wb, wsAuditoria, "CTOs Auditoría");
+
+    // 2. Pestaña CTOs Planeadas
+    const planeadasRows = planeadasCtos.map(mapCtoToRow);
+    const wsPlaneadas = XLSX.utils.aoa_to_sheet([headers, ...planeadasRows]);
+    XLSX.utils.book_append_sheet(wb, wsPlaneadas, "CTOs Planeadas");
 
     // Escribir a un buffer binario
     const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -72,7 +92,7 @@ export async function GET() {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": "attachment; filename=ctos_auditadas.xlsx"
+        "Content-Disposition": "attachment; filename=ctos_exportadas.xlsx"
       }
     });
   } catch (error: any) {
