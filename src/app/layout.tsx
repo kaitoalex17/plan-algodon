@@ -8,6 +8,12 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Plan Algodon Auditoria",
   description: "Gestión y auditoría de recursos en mapa",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Algodón",
+  },
 };
 
 export const viewport = {

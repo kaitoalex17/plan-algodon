@@ -145,6 +145,13 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     if (savedThreshold && !initialMapState?.zoomThreshold) {
       setZoomThreshold(parseInt(savedThreshold));
     }
+
+    // Registrar Service Worker para soporte PWA
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js")
+        .then((reg) => console.log("Service Worker registrado con éxito:", reg.scope))
+        .catch((err) => console.error("Error al registrar Service Worker:", err));
+    }
   }, [fetchFilterOptions, initialMapState]);
 
   // Cargar estadísticas

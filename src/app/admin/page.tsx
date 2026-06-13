@@ -118,6 +118,9 @@ export default function AdminPage() {
             <Link href="/admin/status" className="btn" style={{ background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)', justifyContent: 'center', padding: '0.75rem' }}>
               🎨 Configurar Subestados y Colores
             </Link>
+            <Link href="/admin/evidencia" className="btn" style={{ background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)', justifyContent: 'center', padding: '0.75rem' }}>
+              📸 Evidencias Fotográficas (Organizador)
+            </Link>
             
             <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.75rem 0' }} />
             

@@ -38,9 +38,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // States for toggles
+  // States for toggles, progress and gallery
   const [showFiberDetails, setShowFiberDetails] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [showGallery, setShowGallery] = useState(false);
+  const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
+  const [cacheKey, setCacheKey] = useState(Date.now());
 
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
@@ -90,6 +94,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       fetchCtoDetails();
       fetchOptions();
       setShowFiberDetails(false); // Reset on cto change
+      setShowGallery(false);
+      setActiveImgIndex(null);
     } else {
       setDetails(null);
     }
@@ -155,34 +161,91 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload pictures with real percentage progress
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setUploading(true);
+    setUploadProgress(0);
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
       formData.append("files", files[i]);
     }
     formData.append("ctoId", cto.id);
 
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
 
-      if (res.ok) {
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      setUploading(false);
+      setUploadProgress(null);
+      if (xhr.status >= 200 && xhr.status < 300) {
         alert(`Se han subido ${files.length} imágenes correctamente`);
         fetchCtoDetails(); // Refrescar para mostrar las nuevas imágenes
       } else {
         alert("Error al subir las imágenes");
       }
+    };
+
+    xhr.onerror = () => {
+      setUploading(false);
+      setUploadProgress(null);
+      alert("Error al conectar con el servidor de subida");
+    };
+
+    xhr.send(formData);
+  };
+
+  const handleRotateImage = async (imageId: string, direction: "left" | "right") => {
+    try {
+      const res = await fetch("/api/uploads/rotate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId, direction })
+      });
+      if (res.ok) {
+        setCacheKey(Date.now());
+        fetchCtoDetails();
+      } else {
+        alert("Error al rotar la imagen");
+      }
     } catch (err) {
       console.error(err);
-      alert("Error al conectar con el servidor de subida");
-    } finally {
-      setUploading(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar esta imagen de forma permanente?")) return;
+    try {
+      const res = await fetch("/api/uploads/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId })
+      });
+      if (res.ok) {
+        alert("Imagen eliminada correctamente");
+        if (activeImgIndex !== null) {
+          const remaining = (details?.images || []).filter((i: any) => i.id !== imageId);
+          if (remaining.length === 0) {
+            setActiveImgIndex(null);
+          } else {
+            setActiveImgIndex(Math.max(0, activeImgIndex - 1));
+          }
+        }
+        fetchCtoDetails();
+      } else {
+        alert("Error al eliminar la imagen");
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -442,32 +505,59 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Evidencias Fotográficas</label>
                 <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px", marginBottom: "8px" }}>
                   {details?.images && details.images.length > 0 ? (
-                    details.images.map((img: any) => (
-                      <a key={img.id} href={img.url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, position: "relative" }}>
+                    details.images.map((img: any, idx: number) => (
+                      <div 
+                        key={img.id} 
+                        onClick={() => {
+                          setShowGallery(true);
+                          setActiveImgIndex(idx);
+                        }} 
+                        style={{ flexShrink: 0, position: "relative", cursor: "pointer" }}
+                      >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
-                          src={img.url} 
+                          src={`${img.url}?t=${cacheKey}`} 
                           alt="Evidencia" 
                           style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-color)" }} 
                         />
-                      </a>
+                      </div>
                     ))
                   ) : (
                     <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.85rem", fontStyle: "italic", margin: "10px 0" }}>No hay fotos registradas</p>
                   )}
                 </div>
 
-                <label className="btn" style={{ background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", width: "100%", justifyContent: "center" }}>
-                  {uploading ? "Subiendo..." : "📸 Subir Nuevas Fotos"}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    multiple 
-                    disabled={uploading}
-                    style={{ display: "none" }} 
-                    onChange={handleImageUpload} 
-                  />
-                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <label className="btn" style={{ flex: 2, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", justifyContent: "center", alignItems: "center" }}>
+                    {uploading ? "Subiendo..." : "📸 Subir Fotos"}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      disabled={uploading}
+                      style={{ display: "none" }} 
+                      onChange={handleImageUpload} 
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowGallery(true)}
+                    className="btn"
+                    style={{
+                      flex: 1, background: "var(--border-color)", color: "var(--text-color)",
+                      border: "none", borderRadius: "8px", minHeight: "40px", padding: "6px 12px",
+                      fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "center",
+                      gap: "4px", cursor: "pointer"
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    Galería
+                  </button>
+                </div>
               </div>
 
               {/* Escribir Comentario rápido */}
@@ -608,6 +698,177 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* POPUP DE PROGRESO DE SUBIDA */}
+      {uploadProgress !== null && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div className="glass-panel" style={{ width: "90%", maxWidth: "320px", padding: "1.5rem", background: "var(--card-bg)", textAlign: "center" }}>
+            <h4 style={{ margin: "0 0 10px 0", color: "var(--text-color)" }}>Subiendo Evidencias...</h4>
+            <div style={{ background: "var(--border-color)", height: "8px", borderRadius: "4px", width: "100%", overflow: "hidden", marginBottom: "8px" }}>
+              <div style={{ background: "var(--primary-color)", height: "100%", width: `${uploadProgress}%`, transition: "width 0.1s" }} />
+            </div>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>{uploadProgress}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE LA GALERÍA COMPLETA */}
+      {showGallery && (
+        <div style={{ position: "fixed", inset: 0, background: "var(--bg-color)", zIndex: 2999, display: "flex", flexDirection: "column", padding: "16px", overflow: "hidden" }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>
+              🖼️ Galería de Evidencias - CTO {cto.num}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowGallery(false)}
+              className="btn"
+              style={{
+                minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)",
+                borderRadius: "8px", cursor: "pointer", fontWeight: 700
+              }}
+            >
+              ✕ Cerrar
+            </button>
+          </div>
+
+          {/* Grid de imágenes */}
+          <div className="scrollable-content" style={{ flex: 1, overflowY: "auto" }}>
+            {details?.images && details.images.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "10px", paddingBottom: "20px" }}>
+                {details.images.map((img: any, idx: number) => (
+                  <div
+                    key={img.id}
+                    onClick={() => setActiveImgIndex(idx)}
+                    style={{ position: "relative", cursor: "pointer", borderRadius: "8px", overflow: "hidden", border: "1.5px solid var(--border-color)", aspectRatio: "1/1" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`${img.url}?t=${cacheKey}`}
+                      alt={`Evidencia ${idx}`}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-color)", opacity: 0.7 }}>
+                <p style={{ fontStyle: "italic" }}>No hay fotos registradas para esta CTO.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* VISOR LIGHTBOX DE IMAGEN A PANTALLA COMPLETA */}
+      {activeImgIndex !== null && details?.images && details.images[activeImgIndex] && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 5000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", color: "white", zIndex: 10 }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Foto {activeImgIndex + 1} de {details.images.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveImgIndex(null)}
+              style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "1.2rem", fontWeight: 700 }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Central Image Viewer with Navigation */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", padding: "0 10px" }}>
+            {/* Arrow Left */}
+            <button
+              type="button"
+              onClick={() => setActiveImgIndex(prev => (prev !== null && prev > 0 ? prev - 1 : (details.images.length - 1)))}
+              style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
+            >
+              ◀
+            </button>
+
+            {/* Image Container */}
+            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%", position: "relative" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${details.images[activeImgIndex].url}?t=${cacheKey}`}
+                alt="Visor"
+                style={{ maxHeight: "80vh", maxWidth: "100%", objectFit: "contain", borderRadius: "8px", transition: "transform 0.2s" }}
+              />
+            </div>
+
+            {/* Arrow Right */}
+            <button
+              type="button"
+              onClick={() => setActiveImgIndex(prev => (prev !== null && prev < details.images.length - 1 ? prev + 1 : 0))}
+              style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Action Footer (Rotate, Delete, Download) */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "24px", padding: "24px 16px", background: "rgba(0,0,0,0.8)", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+            {/* Rotar Izquierda */}
+            <button
+              type="button"
+              onClick={() => handleRotateImage(details.images[activeImgIndex].id, "left")}
+              title="Girar a la izquierda"
+              style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 15a3.99 3.99 0 0 0-4-4H4M4 11l3-3M4 11l3 3" />
+                <path d="M12 2a10 10 0 0 1 10 10c0 2.21-.9 4.21-2.34 5.66" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Girar Izq</span>
+            </button>
+
+            {/* Rotar Derecha */}
+            <button
+              type="button"
+              onClick={() => handleRotateImage(details.images[activeImgIndex].id, "right")}
+              title="Girar a la derecha"
+              style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 15a3.99 3.99 0 0 1 4-4h6M20 11l-3-3M20 11l-3 3" />
+                <path d="M12 2a10 10 0 0 0-10 10c0 2.21.9 4.21 2.34 5.66" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Girar Der</span>
+            </button>
+
+            {/* Descargar */}
+            <a
+              href={details.images[activeImgIndex].url}
+              download={`CTO_${cto.num}_imagen_${activeImgIndex + 1}.jpg`}
+              title="Descargar imagen"
+              style={{ textDecoration: "none", color: "white", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 21h12M12 3v14M12 17l-5-5M12 17l5-5" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Descargar</span>
+            </a>
+
+            {/* Borrar */}
+            <button
+              type="button"
+              onClick={() => handleDeleteImage(details.images[activeImgIndex].id)}
+              title="Eliminar imagen"
+              style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              <span style={{ fontSize: "0.75rem" }}>Eliminar</span>
+            </button>
           </div>
         </div>
       )}
