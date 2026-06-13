@@ -41,7 +41,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   // States for toggles, progress and gallery
   const [showFiberDetails, setShowFiberDetails] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ percent: number; loaded: number; total: number } | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
   const [cacheKey, setCacheKey] = useState(Date.now());
@@ -167,7 +167,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     if (!files || files.length === 0) return;
 
     setUploading(true);
-    setUploadProgress(0);
+    setUploadProgress({ percent: 0, loaded: 0, total: files[0]?.size || 0 });
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
       formData.append("files", files[i]);
@@ -180,7 +180,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(percent);
+        setUploadProgress({ percent, loaded: event.loaded, total: event.total });
       }
     };
 
@@ -529,7 +529,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
                 <div style={{ display: "flex", gap: "8px" }}>
                   <label className="btn" style={{ flex: 2, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", justifyContent: "center", alignItems: "center" }}>
-                    {uploading ? "Subiendo..." : "📸 Subir Fotos"}
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      {uploading ? "Subiendo..." : "Subir Fotos"}
+                    </span>
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -577,7 +583,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
-                  {saving ? "Guardando..." : "💾 Guardar Cambios"}
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    {saving ? "Guardando..." : "Guardar Cambios"}
+                  </span>
                 </button>
               </div>
             </form>
@@ -592,8 +605,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "16px" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>
-              💬 Comentarios e Historial - CTO {cto.num}
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--primary-color)" }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Comentarios e Historial - CTO {cto.num}
             </h2>
             <button
               type="button"
@@ -707,9 +723,17 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           <div className="glass-panel" style={{ width: "90%", maxWidth: "320px", padding: "1.5rem", background: "var(--card-bg)", textAlign: "center" }}>
             <h4 style={{ margin: "0 0 10px 0", color: "var(--text-color)" }}>Subiendo Evidencias...</h4>
             <div style={{ background: "var(--border-color)", height: "8px", borderRadius: "4px", width: "100%", overflow: "hidden", marginBottom: "8px" }}>
-              <div style={{ background: "var(--primary-color)", height: "100%", width: `${uploadProgress}%`, transition: "width 0.1s" }} />
+              <div style={{ background: "var(--primary-color)", height: "100%", width: `${uploadProgress.percent}%`, transition: "width 0.1s" }} />
             </div>
-            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>{uploadProgress}%</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>{uploadProgress.percent}%</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-color)", opacity: 0.8 }}>
+                {(uploadProgress.loaded / (1024 * 1024)).toFixed(2)} MB de {(uploadProgress.total / (1024 * 1024)).toFixed(2)} MB
+              </span>
+              <span style={{ fontSize: "0.68rem", color: "var(--text-color)", opacity: 0.6 }}>
+                Faltan: {Math.max(0, (uploadProgress.total - uploadProgress.loaded) / (1024 * 1024)).toFixed(2)} MB
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -719,8 +743,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         <div style={{ position: "fixed", inset: 0, background: "var(--bg-color)", zIndex: 2999, display: "flex", flexDirection: "column", padding: "16px", overflow: "hidden" }}>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "16px" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>
-              🖼️ Galería de Evidencias - CTO {cto.num}
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--primary-color)" }}>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+              Galería de Evidencias - CTO {cto.num}
             </h2>
             <button
               type="button"
