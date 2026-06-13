@@ -100,3 +100,9 @@ Este proyecto incluye soporte para despliegue automatizado mediante contenedores
 Este proyecto ha sido desarrollado e iterado en colaboración con **Antigravity**, un asistente de inteligencia artificial para desarrollo de software diseñado por el equipo de **Advanced Agentic Coding en Google DeepMind**. 
 
 Se han aplicado directrices avanzadas de diseño de interfaces web, optimizaciones de rendimiento en renderizado de mapas móviles, compresión eficiente de archivos en NodeJS y descodificación segura de estructuras de datos.
+
+---
+
+## 📄 Licencia
+
+Este proyecto está distribuido bajo la **Licencia MIT**. Puedes ver más detalles en el archivo [LICENSE](file:///c:/app/algodon-new/LICENSE) adjunto en este repositorio.
