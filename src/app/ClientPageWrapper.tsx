@@ -815,69 +815,91 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         )}
 
         {/* VISTA MI DÍA */}
-        {activeView === "my-day" && (
-          <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "12px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "600px", margin: "0 auto", paddingBottom: "80px" }}>
-              <div style={{ background: "var(--card-bg)", padding: "12px 16px", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "4px" }}>
-                <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)", margin: 0 }}>Mis auditorías de hoy</h3>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "2px 0 0 0" }}>
-                  Lista de CTOs auditadas o modificadas por tu perfil durante el día de hoy.
-                </p>
-              </div>
+        {activeView === "my-day" && (() => {
+          const correctCount = myDayCtos.filter(c => c.status === "CORRECTO").length;
+          const falloCount = myDayCtos.filter(c => c.status === "FALLO").length;
+          const totalCount = myDayCtos.length;
 
-              {myDayLoading ? (
-                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", fontSize: "0.9rem" }}>
-                  Cargando tus auditorías de hoy...
-                </div>
-              ) : myDayCtos.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", background: "var(--card-bg)", border: "1px dashed var(--border-color)", borderRadius: "10px" }}>
-                  <p style={{ fontSize: "0.95rem", fontWeight: 600 }}>Aún no has auditado ninguna CTO hoy</p>
-                  <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>Las CTOs que audites o edites hoy aparecerán aquí en orden cronológico.</p>
-                </div>
-              ) : (
-                myDayCtos.map((cto) => {
-                  const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
-                  const timeString = new Date(cto.auditTime).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+          return (
+            <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "600px", margin: "0 auto", paddingBottom: "80px" }}>
+                <div style={{ background: "var(--card-bg)", padding: "12px 16px", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "4px" }}>
+                  <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)", margin: 0 }}>Mis auditorías de hoy</h3>
+                  <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "2px 0 0 0" }}>
+                    Lista de CTOs auditadas o modificadas por tu perfil durante el día de hoy.
+                  </p>
 
-                  return (
-                    <div 
-                      key={cto.id}
-                      onClick={() => setSelectedCto(cto)}
-                      className="glass-panel hover-card"
-                      style={{ 
-                        display: "flex", alignItems: "center", justifyContent: "space-between", 
-                        padding: "12px 16px", background: "var(--card-bg)", 
-                        border: "1.5px solid var(--border-color)", borderRadius: "10px", 
-                        cursor: "pointer", transition: "transform 0.15s, border-color 0.15s"
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-color)" }}>{cto.num}</span>
-                          {cto.numeroNuevo && (
-                            <span style={{ fontSize: "0.75rem", color: "#64748b", background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
-                              {cto.numeroNuevo}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px", fontSize: "0.8rem", color: "#64748b" }}>
-                          {/* Dot del estado */}
-                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor, display: "inline-block" }} />
-                          <span>{cto.subStatus?.name || cto.status}</span>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#64748b", background: "var(--bg-color)", padding: "4px 8px", borderRadius: "6px" }}>
-                          🕒 {timeString}
-                        </span>
-                      </div>
+                  {/* Contadores */}
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px", borderTop: "1px dashed var(--border-color)", paddingTop: "10px" }}>
+                    <div style={{ flex: 1, textAlign: "center", background: "var(--bg-color)", padding: "6px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+                      <span style={{ display: "block", fontSize: "0.7rem", color: "#64748b", fontWeight: 600 }}>Total</span>
+                      <strong style={{ fontSize: "1.1rem", color: "var(--text-color)" }}>{totalCount}</strong>
                     </div>
-                  );
-                })
-              )}
+                    <div style={{ flex: 1, textAlign: "center", background: "#e8f5e9", padding: "6px", borderRadius: "6px", border: "1px solid #c8e6c9" }}>
+                      <span style={{ display: "block", fontSize: "0.7rem", color: "#2e7d32", fontWeight: 600 }}>Correctas</span>
+                      <strong style={{ fontSize: "1.1rem", color: "#2e7d32" }}>{correctCount}</strong>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center", background: "#ffebee", padding: "6px", borderRadius: "6px", border: "1px solid #ffcdd2" }}>
+                      <span style={{ display: "block", fontSize: "0.7rem", color: "#c62828", fontWeight: 600 }}>Fallidas</span>
+                      <strong style={{ fontSize: "1.1rem", color: "#c62828" }}>{falloCount}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {myDayLoading ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", fontSize: "0.9rem" }}>
+                    Cargando tus auditorías de hoy...
+                  </div>
+                ) : myDayCtos.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", background: "var(--card-bg)", border: "1px dashed var(--border-color)", borderRadius: "10px" }}>
+                    <p style={{ fontSize: "0.95rem", fontWeight: 600 }}>Aún no has auditado ninguna CTO hoy</p>
+                    <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>Las CTOs que audites o edites hoy aparecerán aquí en orden cronológico.</p>
+                  </div>
+                ) : (
+                  myDayCtos.map((cto) => {
+                    const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
+                    const timeString = new Date(cto.auditTime).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+                    return (
+                      <div 
+                        key={cto.id}
+                        onClick={() => setSelectedCto(cto)}
+                        className="glass-panel hover-card"
+                        style={{ 
+                          display: "flex", alignItems: "center", justifyContent: "space-between", 
+                          padding: "12px 16px", background: "var(--card-bg)", 
+                          border: "1.5px solid var(--border-color)", borderRadius: "10px", 
+                          cursor: "pointer", transition: "transform 0.15s, border-color 0.15s"
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-color)" }}>{cto.num}</span>
+                            {cto.numeroNuevo && (
+                              <span style={{ fontSize: "0.75rem", color: "#64748b", background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
+                                {cto.numeroNuevo}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px", fontSize: "0.8rem", color: "#64748b" }}>
+                            {/* Dot del estado */}
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor, display: "inline-block" }} />
+                            <span>{cto.subStatus?.name || cto.status}</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#64748b", background: "var(--bg-color)", padding: "4px 8px", borderRadius: "6px" }}>
+                            🕒 {timeString}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
 
