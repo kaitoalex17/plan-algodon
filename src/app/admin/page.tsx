@@ -260,6 +260,19 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      <div style={{ 
+        textAlign: "center", 
+        fontSize: "0.75rem", 
+        fontWeight: 700, 
+        color: "var(--text-color)", 
+        opacity: 0.6, 
+        marginTop: "2rem",
+        borderTop: "1px solid var(--border-color)",
+        paddingTop: "1rem"
+      }}>
+        Plan Algodón - Versión 1.5
+      </div>
     </div>
   );
 }

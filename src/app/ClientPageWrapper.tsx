@@ -1107,6 +1107,19 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             >
               Guardar y Cerrar
             </button>
+
+            <div style={{ 
+              textAlign: "center", 
+              fontSize: "0.75rem", 
+              fontWeight: 700, 
+              color: "var(--text-color)", 
+              opacity: 0.6, 
+              marginTop: "16px",
+              borderTop: "1px solid var(--border-color)",
+              paddingTop: "12px"
+            }}>
+              Plan Algodón - Versión 1.5
+            </div>
           </div>
         </div>
       )}
