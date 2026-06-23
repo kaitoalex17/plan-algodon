@@ -130,7 +130,6 @@ export async function POST(req: Request) {
         municipio: row.municipio ? decodeHtml(String(row.municipio)) : null,
         colocacion: row.colocacion ? decodeHtml(String(row.colocacion)) : null,
         fechaAgregacion: fecha,
-        notes: row.notas ? decodeHtml(String(row.notas)) : null, // Mapea notas a schema notas
         notas: row.notas ? decodeHtml(String(row.notas)) : null,
         status: ctoStatus,
         category: activeCategory,
