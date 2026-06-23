@@ -108,17 +108,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
   if (!cto) return null;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveCto = async (targetStatus: string, targetAssignedToId: string | null) => {
     setSaving(true);
     try {
       const res = await fetch(`/api/ctos/${cto.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status,
+          status: targetStatus,
           subStatusId: subStatusId || null,
-          assignedToId: assignedToId || null,
+          assignedToId: targetAssignedToId || null,
           notas,
           commentText,
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
@@ -137,14 +136,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         
         // Buscamos si hay substatus asociado en la lista local para enviarle el objeto completo al mapa
         const sub = subStatuses.find(s => s.id === subStatusId);
-        const assigned = users.find(u => u.id === assignedToId);
+        const assigned = users.find(u => u.id === targetAssignedToId);
         
         const fullUpdatedCto = {
           ...cto,
-          status,
+          status: targetStatus,
           subStatusId: subStatusId || null,
           subStatus: sub || null,
-          assignedToId: assignedToId || null,
+          assignedToId: targetAssignedToId || null,
           assignedTo: assigned || null,
           notas,
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
@@ -168,6 +167,23 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveCto(status, assignedToId);
+  };
+
+  const handleCerrarYGuardar = async () => {
+    // 1. Cambiar a CORRECTO
+    setStatus("CORRECTO");
+    // 2. Autoasignar al usuario actual
+    const currentUserId = (session?.user as any)?.id;
+    if (currentUserId) {
+      setAssignedToId(currentUserId);
+    }
+    // 3. Guardar inmediatamente
+    await saveCto("CORRECTO", currentUserId || assignedToId);
   };
 
   // Upload pictures with real percentage progress
@@ -621,19 +637,44 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button type="button" onClick={onClose} className="btn" style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)" }}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                      <polyline points="17 21 17 13 7 13 7 21" />
-                      <polyline points="7 3 7 8 15 8" />
-                    </svg>
-                    {saving ? "Guardando..." : "Guardar Cambios"}
-                  </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button type="button" onClick={onClose} className="btn" style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)" }}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                      </svg>
+                      {saving ? "Guardando..." : "Guardar Cambios"}
+                    </span>
+                  </button>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={handleCerrarYGuardar} 
+                  className="btn" 
+                  disabled={saving}
+                  style={{ 
+                    width: "100%", 
+                    background: "#10b981", 
+                    color: "white", 
+                    fontWeight: 700, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    gap: "6px",
+                    minHeight: "44px"
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                  {saving ? "Guardando..." : "Cerrar y Guardar (Marcar Correcto)"}
                 </button>
               </div>
             </form>
