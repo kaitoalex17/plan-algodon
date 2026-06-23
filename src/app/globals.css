@@ -133,6 +133,15 @@ html, body {
   -webkit-overflow-scrolling: auto;
 }
 
+/* Allow normal scrolling and zooming on admin pages */
+html.admin-page, body.admin-page {
+  width: auto;
+  height: auto;
+  overflow: auto !important;
+  position: static !important;
+  touch-action: auto !important;
+}
+
 /* Allow scrolling on interactive modal and drawer containers */
 .cto-drawer, .glass-panel, .input-field, textarea, select, .modal-content, .scrollable-content {
   touch-action: auto;
