@@ -26,12 +26,26 @@ export async function POST(req: Request) {
       });
     }
 
+    // Normalizar las claves de todas las filas a minúsculas y sin acentos
+    const normalizedCtos = ctos.map((row: any) => {
+      const normalized: any = {};
+      for (const key of Object.keys(row)) {
+        if (row[key] === undefined || row[key] === null) continue;
+        const cleanKey = key.trim().toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Ej: 'Colocación' -> 'colocacion', 'Número' -> 'numero'
+        normalized[cleanKey] = row[key];
+        // Guardar la versión en minúscula sin quitar caracteres especiales (ej: '№')
+        normalized[key.trim().toLowerCase()] = row[key];
+      }
+      return normalized;
+    });
+
     // Recopilar todos los nombres de subestados únicos
     const uniqueSubStatusNames = new Set<string>();
-    for (const row of ctos) {
-      const subName = row.Estado || row.Subestado || row.substatus;
-      if (subName && typeof subName === "string") {
-        const trimmed = subName.trim();
+    for (const row of normalizedCtos) {
+      const subName = row.estado || row.subestado || row.substatus;
+      if (subName !== undefined && subName !== null) {
+        const trimmed = String(subName).trim();
         if (trimmed) {
           uniqueSubStatusNames.add(trimmed);
         }
@@ -60,33 +74,44 @@ export async function POST(req: Request) {
     }
 
     const formattedCtos = [];
-    for (const row of ctos) {
+    for (const row of normalizedCtos) {
       let lat = 0;
       let lng = 0;
-      if (row.Coordenadas && typeof row.Coordenadas === 'string') {
-        const parts = row.Coordenadas.split(',');
+      
+      const coordStr = row.coordenadas;
+      if (coordStr && typeof coordStr === 'string') {
+        const parts = coordStr.split(',');
         if (parts.length >= 2) {
           lat = parseFloat(parts[0].trim());
           lng = parseFloat(parts[1].trim());
         }
-      } else if (row.Latitud && row.Longitud) {
-        lat = parseFloat(String(row.Latitud));
-        lng = parseFloat(String(row.Longitud));
+      } else if (row.latitud && row.longitud) {
+        lat = parseFloat(String(row.latitud));
+        lng = parseFloat(String(row.longitud));
+      } else if (row.lat && row.lng) {
+        lat = parseFloat(String(row.lat));
+        lng = parseFloat(String(row.lng));
       }
 
       if (lat === 0 || lng === 0) continue;
 
       let fecha = new Date();
-      if (typeof row['Fecha de agregación'] === 'number') {
-        fecha = new Date(Math.round((row['Fecha de agregación'] - 25569) * 86400 * 1000));
+      const rawFecha = row['fecha de agregacion'] || row['fecha de agreg'] || row['fecha agregacion'] || row['fecha'];
+      if (typeof rawFecha === 'number') {
+        fecha = new Date(Math.round((rawFecha - 25569) * 86400 * 1000));
+      } else if (rawFecha) {
+        const parsed = Date.parse(String(rawFecha));
+        if (!isNaN(parsed)) {
+          fecha = new Date(parsed);
+        }
       }
 
-      const subName = row.Estado || row.Subestado || row.substatus;
+      const subName = row.estado || row.subestado || row.substatus;
       const subStatusId = subName ? (subStatusMap.get(String(subName).trim().toLowerCase()) || null) : null;
 
       // Intentar mapear estado de CTO
       let ctoStatus = "PENDIENTE";
-      const rawStatus = row.Estado_CTO || row.EstadoCTO || row.status || row.Status;
+      const rawStatus = row.estado_cto || row.estadocto || row.status || row.estado_general;
       if (rawStatus) {
         const upper = String(rawStatus).toUpperCase().trim();
         if (upper === "CORRECTO" || upper === "REVISADO") {
@@ -97,19 +122,20 @@ export async function POST(req: Request) {
       }
 
       formattedCtos.push({
-        num: decodeHtml(String(row.Número || row.Codigo || row.Código || row['№'] || Date.now().toString())),
-        numeroNuevo: row.NumeroNuevo ? decodeHtml(String(row.NumeroNuevo)) : null,
-        coordenadas: String(row.Coordenadas || `${lat}, ${lng}`),
+        num: decodeHtml(String(row.numero || row.codigo || row.cod || row['№'] || row['no'] || Date.now().toString())),
+        numeroNuevo: row.numeronuevo ? decodeHtml(String(row.numeronuevo)) : null,
+        coordenadas: String(row.coordenadas || `${lat}, ${lng}`),
         lat,
         lng,
-        municipio: row.Municipio ? decodeHtml(String(row.Municipio)) : null,
-        colocacion: row.Colocación || row.Colocacion ? decodeHtml(String(row.Colocación || row.Colocacion)) : null,
+        municipio: row.municipio ? decodeHtml(String(row.municipio)) : null,
+        colocacion: row.colocacion ? decodeHtml(String(row.colocacion)) : null,
         fechaAgregacion: fecha,
-        notas: row.Notas ? decodeHtml(String(row.Notas)) : null,
+        notes: row.notas ? decodeHtml(String(row.notas)) : null, // Mapea notas a schema notas
+        notas: row.notas ? decodeHtml(String(row.notas)) : null,
         status: ctoStatus,
         category: activeCategory,
-        zona: row.Zona ? decodeHtml(String(row.Zona)) : null,
-        cluster: row.Cluster ? decodeHtml(String(row.Cluster)) : null,
+        zona: row.zona ? decodeHtml(String(row.zona)) : null,
+        cluster: row.cluster ? decodeHtml(String(row.cluster)) : null,
         subStatusId: subStatusId
       });
     }

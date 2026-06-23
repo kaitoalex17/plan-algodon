@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
+  const [deletingCtos, setDeletingCtos] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -90,6 +91,34 @@ export default function AdminPage() {
       alert("Error en el servidor.");
     } finally {
       setDeletingImages(false);
+    }
+  };
+
+  const handleDeleteAllCtos = async () => {
+    if (!confirm("⚠️ ¡PELIGRO! ¿Estás completamente seguro de que deseas eliminar TODAS las CTOs? Esta acción no se puede deshacer y borrará todas las CTOs, fotos asociadas, comentarios e historial de la base de datos.")) {
+      return;
+    }
+    const confirmText = prompt("Escribe 'ELIMINAR CTOS' para confirmar esta acción:");
+    if (confirmText !== "ELIMINAR CTOS") {
+      alert("Confirmación incorrecta. Acción cancelada.");
+      return;
+    }
+
+    setDeletingCtos(true);
+    try {
+      const res = await fetch("/api/admin/delete-all-ctos", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Se han eliminado con éxito ${data.count || 0} registros de CTOs.`);
+        window.location.reload();
+      } else {
+        alert("Error al intentar eliminar las CTOs.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor.");
+    } finally {
+      setDeletingCtos(false);
     }
   };
 
@@ -208,6 +237,17 @@ export default function AdminPage() {
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
               </svg>
               {deletingImages ? "Borrando..." : "Borrar Todas las Evidencias Fotográficas"}
+            </button>
+            <button 
+              onClick={handleDeleteAllCtos}
+              className="btn" 
+              disabled={deletingCtos}
+              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 700 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+              </svg>
+              {deletingCtos ? "Borrando CTOs..." : "Borrar Todas las CTOs de la Base de Datos"}
             </button>
           </div>
         </div>
