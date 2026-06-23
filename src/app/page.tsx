@@ -28,7 +28,17 @@ export default async function Home() {
     // Obtener última vista del mapa guardada para el usuario
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { lastLat: true, lastLng: true, lastZoom: true, zoomThreshold: true, theme: true }
+      select: { 
+        lastLat: true, 
+        lastLng: true, 
+        lastZoom: true, 
+        zoomThreshold: true, 
+        theme: true,
+        markerShape: true,
+        markerSize: true,
+        showProgramadas: true,
+        mapLayer: true
+      }
     });
 
     if (user) {
@@ -37,7 +47,11 @@ export default async function Home() {
         lng: user.lastLng !== null ? user.lastLng : -5.144,
         zoom: user.lastZoom !== null ? user.lastZoom : 14,
         zoomThreshold: user.zoomThreshold || 13,
-        theme: user.theme || "orange"
+        theme: user.theme || "orange",
+        markerShape: user.markerShape || "circle",
+        markerSize: user.markerSize || 6,
+        showProgramadas: user.showProgramadas,
+        mapLayer: user.mapLayer || "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
       } as any;
     }
   } catch (e) {

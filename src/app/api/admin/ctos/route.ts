@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { num, numeroNuevo, lat, lng, municipio, colocacion, status, subStatusId, assignedToId, notas } = body;
+    const { num, numeroNuevo, lat, lng, municipio, colocacion, status, subStatusId, assignedToId, notas, zona, cluster } = body;
 
     if (!num || lat === undefined || lng === undefined) {
       return NextResponse.json({ error: "Número, latitud y longitud son obligatorios" }, { status: 400 });
@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
         subStatusId: subStatusId || null,
         assignedToId: assignedToId || null,
         notas: notas || null,
+        zona: zona ? String(zona) : null,
+        cluster: cluster ? String(cluster) : null,
       }
     });
 

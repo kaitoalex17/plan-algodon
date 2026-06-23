@@ -74,7 +74,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { 
       status, subStatusId, assignedToId, notas, commentText,
       num, numeroNuevo, lat, lng, municipio, colocacion,
-      puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto
+      puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto,
+      zona, cluster
     } = body;
     const userId = (session.user as any).id;
 
@@ -170,6 +171,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (colocacion !== undefined && (colocacion ? decodeHtml(String(colocacion)) : null) !== oldCto.colocacion) {
       updateData.colocacion = colocacion ? decodeHtml(String(colocacion)) : null;
       historyActions.push(`Modificó colocación a "${updateData.colocacion || 'N/A'}"`);
+    }
+    if (zona !== undefined && (zona ? decodeHtml(String(zona)) : null) !== oldCto.zona) {
+      updateData.zona = zona ? decodeHtml(String(zona)) : null;
+      historyActions.push(`Modificó zona a "${updateData.zona || 'N/A'}"`);
+    }
+    if (cluster !== undefined && (cluster ? decodeHtml(String(cluster)) : null) !== oldCto.cluster) {
+      updateData.cluster = cluster ? decodeHtml(String(cluster)) : null;
+      historyActions.push(`Modificó cluster a "${updateData.cluster || 'N/A'}"`);
     }
 
     // Actualizar CTO en la BD

@@ -59,6 +59,8 @@ export default function AdminCtosPage() {
   const [formSubStatusId, setFormSubStatusId] = useState("");
   const [formAssignedToId, setFormAssignedToId] = useState("");
   const [formNotas, setFormNotas] = useState("");
+  const [formZona, setFormZona] = useState("");
+  const [formCluster, setFormCluster] = useState("");
 
   // Acciones masivas
   const [bulkStatus, setBulkStatus] = useState("");
@@ -143,6 +145,8 @@ export default function AdminCtosPage() {
     setFormSubStatusId("");
     setFormAssignedToId("");
     setFormNotas("");
+    setFormZona("");
+    setFormCluster("");
     setShowFormModal(true);
   };
 
@@ -159,6 +163,8 @@ export default function AdminCtosPage() {
     setFormSubStatusId(cto.subStatusId || "");
     setFormAssignedToId(cto.assignedToId || "");
     setFormNotas(cto.notas || "");
+    setFormZona((cto as any).zona || "");
+    setFormCluster((cto as any).cluster || "");
     setShowFormModal(true);
   };
 
@@ -182,6 +188,8 @@ export default function AdminCtosPage() {
       subStatusId: formSubStatusId || null,
       assignedToId: formAssignedToId || null,
       notas: formNotas || null,
+      zona: formZona || null,
+      cluster: formCluster || null,
     };
 
     const url = editingCto ? `/api/ctos/${editingCto.id}` : "/api/admin/ctos";
@@ -615,6 +623,24 @@ export default function AdminCtosPage() {
                 <input 
                   type="text" className="input-field" placeholder="Ej: Fachada, Poste..." 
                   value={formColocacion} onChange={(e) => setFormColocacion(e.target.value)}
+                  style={{ minHeight: "40px", padding: "8px 12px" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Zona</label>
+                <input 
+                  type="text" className="input-field" placeholder="Ej: Zona A" 
+                  value={formZona} onChange={(e) => setFormZona(e.target.value)}
+                  style={{ minHeight: "40px", padding: "8px 12px" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Cluster</label>
+                <input 
+                  type="text" className="input-field" placeholder="Ej: Cluster 12" 
+                  value={formCluster} onChange={(e) => setFormCluster(e.target.value)}
                   style={{ minHeight: "40px", padding: "8px 12px" }}
                 />
               </div>

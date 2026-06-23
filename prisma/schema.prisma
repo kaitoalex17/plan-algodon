@@ -25,6 +25,7 @@ model User {
   markerShape   String    @default("circle")
   markerSize    Int       @default(6)
   showProgramadas Boolean @default(true)
+  mapLayer        String  @default("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}")
   assignedCTOs  CTO[]     @relation("AssignedTo")
   createdCTOs   CTO[]     @relation("CreatedBy")
   comments      Comment[]
@@ -83,6 +84,8 @@ model CTO {
   createdById    String?
   createdBy      User?     @relation("CreatedBy", fields: [createdById], references: [id])
   createdInField Boolean   @default(false)
+  zona           String?
+  cluster        String?
   
   // Datos específicos de auditoría de fibra
   puertosTotal      Int?      @default(16)

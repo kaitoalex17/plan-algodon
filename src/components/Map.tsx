@@ -321,6 +321,16 @@ export default function Map({
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
   const [showMapTypes, setShowMapTypes] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+
+  // Cargar capa guardada
+  useEffect(() => {
+    const saved = localStorage.getItem("map_layer");
+    if (saved) {
+      setTileUrl(saved);
+    } else if (initialMapState?.mapLayer) {
+      setTileUrl(initialMapState.mapLayer);
+    }
+  }, [initialMapState]);
   
   // Estados de Geolocalización
   const [isTracking, setIsTracking] = useState(false);
@@ -478,6 +488,12 @@ export default function Map({
                   onClick={() => {
                     setTileUrl(opt.value);
                     setShowMapTypes(false);
+                    localStorage.setItem("map_layer", opt.value);
+                    fetch("/api/users/map-state", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ mapLayer: opt.value })
+                    }).catch(err => console.error("Error al guardar capa de mapa:", err));
                   }}
                   style={{
                     background: tileUrl === opt.value ? "var(--primary-color)" : "transparent",

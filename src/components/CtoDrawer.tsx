@@ -33,6 +33,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [potenciaDbm, setPotenciaDbm] = useState<number | string>("");
   const [cierreSeguridad, setCierreSeguridad] = useState(true);
   const [etiquetadoCorrecto, setEtiquetadoCorrecto] = useState(true);
+  const [zona, setZona] = useState("");
+  const [cluster, setCluster] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setSubStatusId(data.subStatusId || "");
         setAssignedToId(data.assignedToId || "");
         setNotas(data.notas || "");
+        setZona(data.zona || "");
+        setCluster(data.cluster || "");
         
         // Cargar nuevos campos de fibra
         setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 16);
@@ -122,6 +126,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
           cierreSeguridad: true,
           etiquetadoCorrecto: true,
+          zona: zona || null,
+          cluster: cluster || null,
         }),
       });
 
@@ -146,6 +152,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
           cierreSeguridad: true,
           etiquetadoCorrecto: true,
+          zona: zona || null,
+          cluster: cluster || null,
         };
 
         onUpdate(fullUpdatedCto);
@@ -320,17 +328,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             
-            {/* Ubicación y Enlaces */}
             <div style={{ padding: "1rem", background: "var(--bg-color)", borderRadius: "10px", border: "1px solid var(--border-color)", color: "var(--text-color)" }}>
-              <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Municipio:</strong> {cto.municipio || "N/A"}</p>
-              <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Colocación:</strong> {cto.colocacion || "N/A"}</p>
-              <p style={{ margin: "4px 0", fontSize: "0.95rem" }}><strong>Coordenadas:</strong> {cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</p>
+              <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Municipio:</strong> {cto.municipio || "N/A"}</p>
+              <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Colocación:</strong> {cto.colocacion || "N/A"}</p>
+              <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Zona:</strong> {cto.zona || "N/A"}</p>
+              <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Cluster:</strong> {cto.cluster || "N/A"}</p>
+              <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Coordenadas:</strong> {cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</p>
               
-              <div style={{ display: "flex", gap: "10px", marginTop: "1rem" }}>
-                <button onClick={openGoogleMaps} className="btn btn-primary" style={{ flex: 1, minHeight: "44px", fontSize: "0.9rem", padding: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", marginTop: "0.75rem" }}>
+                <button onClick={openGoogleMaps} className="btn btn-primary" style={{ flex: 1, minHeight: "34px", fontSize: "0.8rem", padding: "4px 8px" }}>
                   Google Maps
                 </button>
-                <button onClick={openCtoTracker} className="btn" style={{ flex: 1, minHeight: "44px", background: "#1e293b", color: "white", fontSize: "0.9rem", padding: "8px" }}>
+                <button onClick={openCtoTracker} className="btn" style={{ flex: 1, minHeight: "34px", background: "#1e293b", color: "white", fontSize: "0.8rem", padding: "4px 8px" }}>
                   CTO Tracker
                 </button>
               </div>
@@ -440,40 +449,67 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
               {/* Nuevos Datos de Fibra (Bajo botón i) */}
               {showFiberDetails && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      value={puertosTotal} 
-                      onChange={e => setPuertosTotal(e.target.value)}
-                      placeholder="16"
-                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                    />
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        value={puertosTotal} 
+                        onChange={e => setPuertosTotal(e.target.value)}
+                        placeholder="16"
+                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        value={puertosOcupados} 
+                        onChange={e => setPuertosOcupados(e.target.value)}
+                        placeholder="0"
+                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        className="input-field" 
+                        value={potenciaDbm} 
+                        onChange={e => setPotenciaDbm(e.target.value)}
+                        placeholder="-19.5"
+                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      value={puertosOcupados} 
-                      onChange={e => setPuertosOcupados(e.target.value)}
-                      placeholder="0"
-                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
-                    <input 
-                      type="number" 
-                      step="any"
-                      className="input-field" 
-                      value={potenciaDbm} 
-                      onChange={e => setPotenciaDbm(e.target.value)}
-                      placeholder="-19.5"
-                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                    />
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Zona</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={zona} 
+                        onChange={e => setZona(e.target.value)}
+                        placeholder="Ej: Zona A"
+                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Cluster</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={cluster} 
+                        onChange={e => setCluster(e.target.value)}
+                        placeholder="Ej: Cluster 1"
+                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

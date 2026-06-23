@@ -33,8 +33,14 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
   const [selectedCto, setSelectedCto] = useState<any>(null);
   const [ctos, setCtos] = useState(initialCtos);
-  const [activeView, setActiveView] = useState<"map" | "list">("map");
+  const [activeView, setActiveView] = useState<"map" | "list" | "my-day">("map");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [myDayCtos, setMyDayCtos] = useState<any[]>([]);
+  const [myDayLoading, setMyDayLoading] = useState(false);
+
+  const [filterZona, setFilterZona] = useState("");
+  const [filterCluster, setFilterCluster] = useState("");
 
   const [centerCoords, setCenterCoords] = useState<[number, number] | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -152,17 +158,21 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
     // Cargar vista guardada y filtros de localStorage
     const savedView = localStorage.getItem("active_view");
-    if (savedView === "map" || savedView === "list") {
-      setActiveView(savedView as "map" | "list");
+    if (savedView === "map" || savedView === "list" || savedView === "my-day") {
+      setActiveView(savedView as "map" | "list" | "my-day");
     }
     const savedStatus = localStorage.getItem("filter_status") || "";
     const savedSubStatus = localStorage.getItem("filter_sub_status") || "";
     const savedAssigned = localStorage.getItem("filter_assigned") || "";
+    const savedZona = localStorage.getItem("filter_zona") || "";
+    const savedCluster = localStorage.getItem("filter_cluster") || "";
     const savedSearch = localStorage.getItem("search_query") || "";
 
     setFilterStatus(savedStatus);
     setFilterSubStatus(savedSubStatus);
     setFilterAssigned(savedAssigned);
+    setFilterZona(savedZona);
+    setFilterCluster(savedCluster);
     setSearchQuery(savedSearch);
 
     // Registrar Service Worker para soporte PWA
@@ -205,7 +215,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     return () => clearTimeout(timer);
   }, [searchQuery, ctos]);
 
-  const handleActiveViewChange = (view: "map" | "list") => {
+  const handleActiveViewChange = (view: "map" | "list" | "my-day") => {
     setActiveView(view);
     localStorage.setItem("active_view", view);
   };
@@ -229,6 +239,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     setFilterAssigned(val);
     localStorage.setItem("filter_assigned", val);
   };
+
+  const handleFilterZonaChange = (val: string) => {
+    setFilterZona(val);
+    setFilterCluster("");
+    localStorage.setItem("filter_zona", val);
+    localStorage.removeItem("filter_cluster");
+  };
+
+  const handleFilterClusterChange = (val: string) => {
+    setFilterCluster(val);
+    localStorage.setItem("filter_cluster", val);
+  };
+
+  const fetchMyDayCtos = useCallback(async () => {
+    setMyDayLoading(true);
+    try {
+      const res = await fetch("/api/my-day");
+      if (res.ok) {
+        setMyDayCtos(await res.json());
+      }
+    } catch (e) {
+      console.error("Error cargando CTOs de mi día:", e);
+    } finally {
+      setMyDayLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeView === "my-day") {
+      fetchMyDayCtos();
+    }
+  }, [activeView, fetchMyDayCtos]);
 
   // Cargar estadísticas
   const fetchStats = async () => {
@@ -264,24 +306,47 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     }
   };
 
+  const uniqueZonas = useMemo(() => {
+    const set = new Set<string>();
+    ctos.forEach(c => {
+      if (c.zona) set.add(c.zona);
+    });
+    return Array.from(set).sort();
+  }, [ctos]);
+
+  const uniqueClusters = useMemo(() => {
+    const set = new Set<string>();
+    ctos.forEach(c => {
+      if (filterZona && c.zona !== filterZona) return;
+      if (c.cluster) set.add(c.cluster);
+    });
+    return Array.from(set).sort();
+  }, [ctos, filterZona]);
+
   // Contar cuántos filtros avanzados están aplicados
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (filterStatus) count++;
     if (filterSubStatus) count++;
     if (filterAssigned) count++;
+    if (filterZona) count++;
+    if (filterCluster) count++;
     return count;
-  }, [filterStatus, filterSubStatus, filterAssigned]);
+  }, [filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster]);
 
   // Resetear filtros
   const handleClearFilters = () => {
     setFilterStatus("");
     setFilterSubStatus("");
     setFilterAssigned("");
+    setFilterZona("");
+    setFilterCluster("");
     setSearchQuery("");
     localStorage.removeItem("filter_status");
     localStorage.removeItem("filter_sub_status");
     localStorage.removeItem("filter_assigned");
+    localStorage.removeItem("filter_zona");
+    localStorage.removeItem("filter_cluster");
     localStorage.removeItem("search_query");
   };
 
@@ -301,7 +366,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         c.num.toLowerCase().includes(query) ||
         (c.municipio && c.municipio.toLowerCase().includes(query)) ||
         (c.colocacion && c.colocacion.toLowerCase().includes(query)) ||
-        (c.numeroNuevo && c.numeroNuevo.toLowerCase().includes(query))
+        (c.numeroNuevo && c.numeroNuevo.toLowerCase().includes(query)) ||
+        (c.zona && c.zona.toLowerCase().includes(query)) ||
+        (c.cluster && c.cluster.toLowerCase().includes(query))
       );
     }
 
@@ -328,8 +395,18 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       }
     }
 
+    // 5. Filtro de Zona
+    if (filterZona) {
+      result = result.filter(c => c.zona === filterZona);
+    }
+
+    // 6. Filtro de Cluster
+    if (filterCluster) {
+      result = result.filter(c => c.cluster === filterCluster);
+    }
+
     return result;
-  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned, showProgramadas]);
+  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster, showProgramadas]);
 
   // Limitar el renderizado en lista para rendimiento móvil óptimo (máx 100 elementos a la vez)
   const visibleListCtos = useMemo(() => {
@@ -518,6 +595,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   ))}
                 </select>
               </div>
+
+              {/* Selector de Zona */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Zona</label>
+                <select 
+                  className="input-field" 
+                  value={filterZona} 
+                  onChange={e => handleFilterZonaChange(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                >
+                  <option value="">Todas</option>
+                  {uniqueZonas.map(z => (
+                    <option key={z} value={z}>{z}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Cluster */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Cluster</label>
+                <select 
+                  className="input-field" 
+                  value={filterCluster} 
+                  onChange={e => handleFilterClusterChange(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                >
+                  <option value="">Todos</option>
+                  {uniqueClusters.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Selector de Técnico */}
@@ -553,48 +662,63 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
           </div>
         )}
 
-        {/* Fila 3: Selector de Vista (Mapa vs Lista) - Diseño Premium Táctil */}
-        <div style={{ display: "flex", background: "var(--bg-color)", borderRadius: "10px", padding: "4px" }}>
+        {/* Fila 3: Selector de Vista (Mapa vs Lista vs Mi día) - Diseño Premium Táctil */}
+        <div style={{ display: "flex", background: "var(--bg-color)", borderRadius: "10px", padding: "4px", gap: "2px" }}>
           <button
             onClick={() => handleActiveViewChange("map")}
             style={{
-              flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
+              flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer",
               background: activeView === "map" ? "var(--primary-color)" : "transparent",
               color: activeView === "map" ? "white" : "var(--text-color)",
               transition: "all 0.2s",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px"
+              gap: "4px"
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18l-6-3V3l6 3m0 12l6-3m-6 3V6m6 9l6 3V9l-6-3m0 9V6" />
             </svg>
-            Vista Mapa ({filteredCtos.length})
+            Mapa ({filteredCtos.length})
           </button>
           <button
             onClick={() => handleActiveViewChange("list")}
             style={{
-              flex: 1, padding: "10px", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700, cursor: "pointer",
+              flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer",
               background: activeView === "list" ? "var(--primary-color)" : "transparent",
               color: activeView === "list" ? "white" : "var(--text-color)",
               transition: "all 0.2s",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px"
+              gap: "4px"
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
             </svg>
-            Vista Lista ({filteredCtos.length})
+            Lista ({filteredCtos.length})
+          </button>
+          <button
+            onClick={() => handleActiveViewChange("my-day")}
+            style={{
+              flex: 1, padding: "8px 4px", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer",
+              background: activeView === "my-day" ? "var(--primary-color)" : "transparent",
+              color: activeView === "my-day" ? "white" : "var(--text-color)",
+              transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "4px"
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Mi día
           </button>
         </div>
 
@@ -639,44 +763,119 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                    const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
                    
                    return (
-                     <div
-                       key={cto.id}
-                       onClick={() => setSelectedCto(cto)}
-                       className="glass-panel"
-                       style={{
-                         display: "flex", alignItems: "center", justifyItems: "center", padding: "14px 16px", cursor: "pointer",
-                         background: "var(--card-bg)", borderLeft: `6px solid ${statusColor}`, minHeight: "60px", borderColor: "var(--border-color)"
-                       }}
-                     >
-                       <div style={{ flex: 1 }}>
-                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                           <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-color)" }}>
-                             CTO {cto.num}
-                           </span>
-                           {cto.numeroNuevo && (
-                             <span style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8, background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
-                               Nuevo: {cto.numeroNuevo}
-                             </span>
-                           )}
-                         </div>
-                         <div style={{ fontSize: "0.85rem", color: "var(--text-color)", opacity: 0.7, marginTop: "4px" }}>
-                           {cto.municipio || "Sin municipio"} • {cto.colocacion || "Ubicación N/A"}
-                         </div>
-                       </div>
- 
-                       {/* Badge de Estado */}
-                       <span style={{
-                         padding: "4px 10px", borderRadius: "12px", fontSize: "0.8rem", fontWeight: 700,
-                         background: cto.status === "CORRECTO" ? "#d1fae5" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
-                         color: cto.status === "CORRECTO" ? "#065f46" : cto.status === "FALLO" ? "#991b1b" : "#374151"
-                       }}>
-                         {cto.subStatus?.name || cto.status}
-                       </span>
-                     </div>
+                     <div 
+                        key={cto.id}
+                        onClick={() => setSelectedCto(cto)}
+                        className="glass-panel hover-card"
+                        style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "14px 16px", background: "var(--card-bg)", border: "1.5px solid var(--border-color)", borderRadius: "12px", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s" }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--text-color)" }}>{cto.num}</span>
+                              {cto.numeroNuevo && (
+                                <span style={{ fontSize: "0.75rem", color: "#64748b", background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
+                                  {cto.numeroNuevo}
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>{cto.municipio || "Sin Municipio"} - {cto.colocacion || "Sin Colocación"}</p>
+                            {(cto.zona || cto.cluster) && (
+                              <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "2px 0 0 0" }}>
+                                {cto.zona && <span>Zona: {cto.zona}</span>} {cto.cluster && <span>• Cluster: {cto.cluster}</span>}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <span style={{ 
+                            padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
+                            background: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#d1fae5" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
+                            color: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#065f46" : cto.status === "FALLO" ? "#991b1b" : "#374151"
+                          }}>
+                            {cto.status}
+                          </span>
+                        </div>
+
+                        {/* Tecnico Asignado en la lista */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border-color)", paddingTop: "8px", fontSize: "0.8rem" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor }} />
+                            <strong style={{ color: "var(--text-color)" }}>{cto.subStatus?.name || "Sin Subestado"}</strong>
+                          </span>
+                          <span style={{ color: "#64748b" }}>
+                            👤 {cto.assignedTo ? (cto.assignedTo.name || cto.assignedTo.email) : "Sin asignar"}
+                          </span>
+                        </div>
+                      </div>
                    );
                  })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* VISTA MI DÍA */}
+        {activeView === "my-day" && (
+          <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "600px", margin: "0 auto", paddingBottom: "80px" }}>
+              <div style={{ background: "var(--card-bg)", padding: "12px 16px", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "4px" }}>
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)", margin: 0 }}>Mis auditorías de hoy</h3>
+                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "2px 0 0 0" }}>
+                  Lista de CTOs auditadas o modificadas por tu perfil durante el día de hoy.
+                </p>
+              </div>
+
+              {myDayLoading ? (
+                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", fontSize: "0.9rem" }}>
+                  Cargando tus auditorías de hoy...
+                </div>
+              ) : myDayCtos.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b", background: "var(--card-bg)", border: "1px dashed var(--border-color)", borderRadius: "10px" }}>
+                  <p style={{ fontSize: "0.95rem", fontWeight: 600 }}>Aún no has auditado ninguna CTO hoy</p>
+                  <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>Las CTOs que audites o edites hoy aparecerán aquí en orden cronológico.</p>
+                </div>
+              ) : (
+                myDayCtos.map((cto) => {
+                  const statusColor = cto.subStatus?.color || (cto.status === "PENDIENTE" ? "#808080" : cto.status === "CORRECTO" ? "#10b981" : "#ef4444");
+                  const timeString = new Date(cto.auditTime).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+                  return (
+                    <div 
+                      key={cto.id}
+                      onClick={() => setSelectedCto(cto)}
+                      className="glass-panel hover-card"
+                      style={{ 
+                        display: "flex", alignItems: "center", justifyContent: "space-between", 
+                        padding: "12px 16px", background: "var(--card-bg)", 
+                        border: "1.5px solid var(--border-color)", borderRadius: "10px", 
+                        cursor: "pointer", transition: "transform 0.15s, border-color 0.15s"
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-color)" }}>{cto.num}</span>
+                          {cto.numeroNuevo && (
+                            <span style={{ fontSize: "0.75rem", color: "#64748b", background: "var(--bg-color)", padding: "2px 6px", borderRadius: "4px" }}>
+                              {cto.numeroNuevo}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px", fontSize: "0.8rem", color: "#64748b" }}>
+                          {/* Dot del estado */}
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor, display: "inline-block" }} />
+                          <span>{cto.subStatus?.name || cto.status}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#64748b", background: "var(--bg-color)", padding: "4px 8px", borderRadius: "6px" }}>
+                          🕒 {timeString}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
