@@ -203,7 +203,7 @@ function FormGuideContent() {
   };
   const updateSplitterSignal = (index: number, val: string) => {
     const updated = [...splitters];
-    updated[index].signal = val;
+    updated[index].signal = val.replace(",", ".");
     setSplitters(updated);
   };
 
@@ -298,29 +298,27 @@ function FormGuideContent() {
       lines.push(`- Se requieren llaves para acceder a la CTO. ${contactStr}`);
     }
 
-    // 4. Antala Sincronismo (Optional - omitted if blank)
     const threshold = config.threshold || 22.99;
     const noSignalVal = config.noSignalValue || 70.0;
     const antalaErrors: string[] = [];
 
     splitters.forEach((s, idx) => {
       if (!s.signal) return;
-      const numVal = Math.abs(parseFloat(s.signal));
+      const clean = s.signal.trim().replace(",", ".");
+      const numVal = Math.abs(parseFloat(clean));
       if (!isNaN(numVal)) {
         if (numVal === noSignalVal) {
-          antalaErrors.push(`- No hay señal en el divisor/splitter ${idx + 1}`);
+          antalaErrors.push(`- No hay señal en el divisor ${idx + 1}`);
         } else if (numVal > threshold) {
-          antalaErrors.push(`- La señal es elevada en el divisor/splitter ${idx + 1}`);
+          antalaErrors.push(`- La señal es elevada en el divisor ${idx + 1}`);
         }
       }
     });
 
-    if (requiereAntala === true) {
-      if (antalaErrors.length > 0) {
-        lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
-      } else {
-        lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
-      }
+    if (antalaErrors.length > 0) {
+      lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
+    } else if (requiereAntala === true) {
+      lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
     }
 
     // Space and Splitters (only the numbers!)
@@ -517,14 +515,51 @@ function FormGuideContent() {
     );
   }
 
+  const checkHasAntalaErrors = () => {
+    const threshold = config?.threshold || 22.99;
+    const noSignalVal = config?.noSignalValue || 70.0;
+    let hasErrors = false;
+
+    splitters.forEach(s => {
+      if (!s.signal) return;
+      const clean = s.signal.trim().replace(",", ".");
+      const numVal = Math.abs(parseFloat(clean));
+      if (!isNaN(numVal)) {
+        if (numVal === noSignalVal || numVal > threshold) {
+          hasErrors = true;
+        }
+      }
+    });
+
+    return hasErrors;
+  };
+
   // Navigate forward
   const nextStep = () => {
-    if (currentStep < 6) setCurrentStep(currentStep + 1);
+    if (currentStep === 4) {
+      const hasAntalaErrors = checkHasAntalaErrors();
+      if (hasAntalaErrors) {
+        setCurrentStep(6);
+      } else {
+        setCurrentStep(5);
+      }
+    } else if (currentStep < 6) {
+      setCurrentStep(currentStep + 1);
+    }
   };
 
   // Navigate backward
   const prevStep = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    if (currentStep === 6) {
+      const hasAntalaErrors = checkHasAntalaErrors();
+      if (hasAntalaErrors) {
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(5);
+      }
+    } else if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
   };
 
   // Skip question
@@ -548,7 +583,14 @@ function FormGuideContent() {
       setRequiereAntala(null);
     }
 
-    if (currentStep < 6) {
+    if (currentStep === 4) {
+      const hasAntalaErrors = checkHasAntalaErrors();
+      if (hasAntalaErrors) {
+        setCurrentStep(6);
+      } else {
+        setCurrentStep(5);
+      }
+    } else if (currentStep < 6) {
       setCurrentStep(currentStep + 1);
     }
   };
