@@ -46,6 +46,8 @@ function FormGuideContent() {
   // Step 1: Ubicación
   const [ubicacionOption, setUbicacionOption] = useState("");
   const [ubicacionOtros, setUbicacionOtros] = useState("");
+  const [ubicacionPlantaTipo, setUbicacionPlantaTipo] = useState("");
+  const [ubicacionPlantaNumero, setUbicacionPlantaNumero] = useState("");
   
   // Step 2: Daños
   const [tieneDanos, setTieneDanos] = useState<boolean | null>(null);
@@ -134,7 +136,12 @@ function FormGuideContent() {
               const saved = JSON.parse(data.formDataJson);
               setLang(saved.lang || "es");
               
-              if (saved.ubicacion) {
+              if (saved.ubicacionOption) {
+                setUbicacionOption(saved.ubicacionOption);
+                setUbicacionPlantaTipo(saved.ubicacionPlantaTipo || "");
+                setUbicacionPlantaNumero(saved.ubicacionPlantaNumero || "");
+                setUbicacionOtros(saved.ubicacionOtros || "");
+              } else if (saved.ubicacion) {
                 setUbicacionOption(saved.ubicacion);
                 const matches = config?.ubicacion?.options?.some((o: any) => o.es === saved.ubicacion);
                 if (!matches && saved.ubicacion) {
@@ -242,12 +249,20 @@ function FormGuideContent() {
 
     // 1. Ubicación (Optional - omitted if blank)
     let finalUbi = "";
-    if (ubicacionOption && ubiRequiresInput(ubicacionOption)) {
-      finalUbi = `${ubicacionOption} (${ubicacionOtros.trim()})`;
-    } else if (ubicacionOption) {
-      finalUbi = ubicacionOption.trim();
-    }
-    if (finalUbi) {
+    if (ubicacionOption) {
+      finalUbi = ubicacionOption;
+      const details: string[] = [];
+      if (ubicacionPlantaTipo && ubicacionPlantaTipo !== "Sin especificar") {
+        details.push(ubicacionPlantaTipo);
+      }
+      if (ubicacionPlantaNumero.trim()) {
+        details.push(`Planta ${ubicacionPlantaNumero.trim()}`);
+      }
+      if (details.length > 0) {
+        finalUbi += ` (${details.join(" - ")})`;
+      } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
+        finalUbi = ubicacionOtros.trim();
+      }
       lines.push(`- Ubicación de la caja CTO: ${finalUbi}`);
     }
 
@@ -353,8 +368,17 @@ function FormGuideContent() {
       const selectedDanosKeys = (Object.keys(danosChecked) as DamageKey[]).filter(k => danosChecked[k]);
       
       let finalUbi = ubicacionOption;
-      if (ubiRequiresInput(ubicacionOption)) {
-        finalUbi = `${ubicacionOption} (${ubicacionOtros.trim()})`;
+      const details: string[] = [];
+      if (ubicacionPlantaTipo && ubicacionPlantaTipo !== "Sin especificar") {
+        details.push(ubicacionPlantaTipo);
+      }
+      if (ubicacionPlantaNumero.trim()) {
+        details.push(`Planta ${ubicacionPlantaNumero.trim()}`);
+      }
+      if (details.length > 0) {
+        finalUbi += ` (${details.join(" - ")})`;
+      } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
+        finalUbi = ubicacionOtros.trim();
       }
 
       const formattedSplitters = splitters.map(s => {
@@ -368,6 +392,10 @@ function FormGuideContent() {
       const payload = {
         lang,
         ubicacion: finalUbi,
+        ubicacionOption,
+        ubicacionPlantaTipo,
+        ubicacionPlantaNumero,
+        ubicacionOtros,
         danos: tieneDanos ? selectedDanosKeys.map(k => t.danosOptions[k]) : [],
         danosKeys: selectedDanosKeys,
         requiereLlaves,
@@ -480,6 +508,8 @@ function FormGuideContent() {
       v.includes("otros") ||
       v.includes("techo falso") ||
       v.includes("registro") ||
+      v.includes("pared") ||
+      v.includes("стіні") ||
       v.includes("коробці") ||
       v.includes("стелі") ||
       v.includes("інше") ||
@@ -662,8 +692,10 @@ function FormGuideContent() {
                 <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0" }}>{t.q1Label}</p>
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {config.ubicacion?.options?.map((opt: any, i: number) => {
-                    // Match either strict option name or normalized name
+                  {config.ubicacion?.options?.filter((opt: any) => {
+                    const es = opt.es.toLowerCase();
+                    return !es.includes("indicar");
+                  }).map((opt: any, i: number) => {
                     const normalizedOpt = opt.es === "Interior > en techo falso" ? "Interior - En techo falso" : 
                                           opt.es === "Registro" ? "En Registro" : opt.es;
                     const isSelected = ubicacionOption === normalizedOpt;
@@ -675,6 +707,8 @@ function FormGuideContent() {
                           setUbicacionOption(normalizedOpt);
                           if (!ubiRequiresInput(normalizedOpt)) {
                             setUbicacionOtros("");
+                            setUbicacionPlantaTipo("");
+                            setUbicacionPlantaNumero("");
                             setCurrentStep(2);
                           }
                         }}
@@ -694,16 +728,68 @@ function FormGuideContent() {
                 </div>
 
                 {ubicacionOption && ubiRequiresInput(ubicacionOption) && (
-                  <div style={{ marginTop: "20px", animation: "slideIn 0.25s ease-out" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "8px", fontWeight: 600 }}>{t.q1WriteOther}</label>
-                    <input 
-                      type="text"
-                      value={ubicacionOtros}
-                      onChange={e => setUbicacionOtros(e.target.value)}
-                      placeholder="Ej: Planta 3, puerta A..."
-                      className="survey-input"
-                      style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
-                    />
+                  <div style={{ marginTop: "20px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out", display: "flex", flexDirection: "column", gap: "12px" }}>
+                    
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
+                        {lang === "es" ? "Tipo de instalación en planta (opcional):" : "Тип встановлення на поверсі (опціонально):"}
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        {[
+                          { es: "de metal, grande", uk: "металевий, великий" },
+                          { es: "de madera", uk: "дерев'яний" },
+                          { es: "en vertical", uk: "вертикальний" },
+                          { es: "Sin especificar", uk: "Без уточнення" }
+                        ].map((tOpt, idx) => {
+                          const isSubSelected = ubicacionPlantaTipo === tOpt.es;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setUbicacionPlantaTipo(tOpt.es)}
+                              style={{
+                                padding: "10px", borderRadius: "10px", 
+                                border: isSubSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                                background: isSubSelected ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)",
+                                color: isSubSelected ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)",
+                                cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+                              }}
+                            >
+                              {lang === "es" ? tOpt.es : tOpt.uk}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "6px", fontWeight: 700 }}>
+                        {lang === "es" ? "Indica el número de la planta (opcional):" : "Вкажіть номер поверху (опціонально):"}
+                      </label>
+                      <input 
+                        type="text"
+                        value={ubicacionPlantaNumero}
+                        onChange={e => setUbicacionPlantaNumero(e.target.value)}
+                        placeholder="Ej: 3, Bajo, Atico..."
+                        className="survey-input"
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "white", fontSize: "0.88rem" }}
+                      />
+                    </div>
+
+                    {ubicacionOption === "Otros" && (
+                      <div style={{ borderTop: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", paddingTop: "12px", marginTop: "4px" }}>
+                        <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "8px", fontWeight: 600 }}>{t.q1WriteOther}</label>
+                        <input 
+                          type="text"
+                          value={ubicacionOtros}
+                          onChange={e => setUbicacionOtros(e.target.value)}
+                          placeholder="Especifica la ubicación..."
+                          className="survey-input"
+                          style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
+                        />
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>

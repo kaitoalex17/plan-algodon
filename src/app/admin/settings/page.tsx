@@ -657,7 +657,7 @@ export default function AdminSettingsPage() {
                 disabled={sendingTest || sendingManual || savingMail}
                 style={{ width: "100%", fontWeight: 700, minHeight: "44px", justifyContent: "center" }}
               >
-                {savingMail ? "Guardando..." : "💾 Guardar Configuración de Correo"}
+                {savingMail ? "Guardando..." : "Guardar Configuración de Correo"}
               </button>
             </div>
 
@@ -669,117 +669,127 @@ export default function AdminSettingsPage() {
           <h2 style={{ marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             Personalización del Cuestionario Multilingüe
           </h2>
-          <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
-            Modifica la estructura de preguntas, opciones y traducciones en español y ucraniano en formato JSON.
-            Los comentarios generados finales siempre se compilarán en español independientemente de la selección de idioma del técnico.
+          <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1.5rem" }}>
+            Configura de forma sencilla las opciones de ubicación, daños, llaves y límites de atenuación para el formulario guiado.
+            Los comentarios generados finales siempre se compilarán en español.
           </p>
 
-          <form onSubmit={handleSaveQuest}>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
-                Estructura del Cuestionario (JSON):
-              </label>
-              <textarea 
-                value={questJson}
-                onChange={e => setQuestJson(e.target.value)}
-                rows={18}
-                style={{
-                  width: "100%",
-                  fontFamily: "monospace",
-                  fontSize: "0.8rem",
-                  padding: "10px",
-                  background: "var(--bg-color)",
-                  color: "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "6px"
-                }}
-              />
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <Link 
+              href="/admin/questionnaire" 
+              className="btn btn-primary"
+              style={{ justifyContent: "center", minHeight: "44px", fontWeight: 700, borderRadius: "8px" }}
+            >
+              Configurar Opciones del Formulario Guiado (Visual)
+            </Link>
 
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                disabled={savingQuest}
-                style={{ flex: 1.5, justifyContent: "center", minHeight: "40px" }}
-              >
-                {savingQuest ? "Guardando..." : "Guardar Estructura del Cuestionario"}
-              </button>
-              
-              <button 
-                type="button" 
-                className="btn"
-                onClick={() => {
-                  if (confirm("¿Estás seguro de que deseas restablecer los valores predeterminados del cuestionario? Esto sobrescribirá los cambios no guardados.")) {
-                    const DEFAULT_CONFIG = {
-                      threshold: 22.99,
-                      noSignalValue: 70.0,
-                      ubicacion: {
-                        label_es: "Dónde se encuentra la CTO",
-                        label_uk: "Де знаходиться CTO",
-                        options: [
-                          { es: "Interior > en techo falso", uk: "Внутрішній > у підвісній стелі" },
-                          { es: "Interior > en la pared", uk: "Внутрішній > на стіні" },
-                          { es: "Poste", uk: "Стовп" },
-                          { es: "Registro", uk: "Реєстр/Коробка" },
-                          { es: "Indicar el número de la planta > de metal, grande", uk: "Вказати номер поверху > металевий, великий" },
-                          { es: "Indicar el número de la planta > de madera", uk: "Вказати номер поверху > дерев'яний" },
-                          { es: "Indicar el número de la planta > en vertical", uk: "Вказати номер поверху > вертикальний" },
-                          { es: "Arqueta", uk: "Люк/Колодязь" },
-                          { es: "Riti", uk: "Ріті (щитова)" },
-                          { es: "Otros (introducir manualmente)", uk: "Інше (ввести вручну)" }
-                        ]
-                      },
-                      danos: {
-                        label_es: "¿La CTO está con daños, visibles suciedades?",
-                        label_uk: "Чи має CTO видимі пошкодження або бруд?",
-                        options: [
-                          { es: "Le falta la tapa", uk: "Відсутня кришка" },
-                          { es: "Tiene cables rotos o dañados", uk: "Має обірвані або пошкоджені кабелі" },
-                          { es: "Tiene cables doblados", uk: "Має загнуті кабелі" },
-                          { es: "No se puede cerrar", uk: "Не закривається" },
-                          { es: "Está sucia y/o llena de agua", uk: "Брудна та/або заповнена водою" },
-                          { es: "Le faltan enfrentadores", uk: "Відсутні з'єднувачі/адаптери" },
-                          { es: "Tiene los divisores/splitter rotos", uk: "Має зламані дільники/спліттери" }
-                        ]
-                      },
-                      llaves: {
-                        label_es: "¿Se requieren llaves?",
-                        label_uk: "Чи потрібні ключі?",
-                        options: [
-                          { es: "Nombre del presidente/conserje", uk: "Ім'я голови/консьєржа" },
-                          { es: "Número de teléfono", uk: "Номер телефону" },
-                          { es: "No tengo ningún dato", uk: "Немає жодних даних" }
-                        ]
-                      },
-                      antala: {
-                        label_es: "¿Se requiere Levantamiento en Antala?",
-                        label_uk: "Чи потрібне внесення в Antala?",
-                        text_yes: "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.",
-                        text_failed: "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:"
-                      },
-                      influencia: {
-                        label_es: "Área de influencia",
-                        label_uk: "Зона впливу",
-                        options: [
-                          { key: "porterillo", es: "Porterillo automático", uk: "Домофон", text: "Se adjunta foto del porterillo automático" },
-                          { key: "calle", es: "Calle", uk: "Вулиця" },
-                          { key: "otros", es: "Otros", uk: "Інше" }
-                        ]
+            <details style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "12px", marginTop: "4px" }}>
+              <summary style={{ fontSize: "0.82rem", color: "#6b7280", cursor: "pointer", fontWeight: 600, padding: "4px 0" }}>
+                Editar Estructura Avanzada (JSON)
+              </summary>
+              <form onSubmit={handleSaveQuest} style={{ marginTop: "10px" }}>
+                <div style={{ marginBottom: "1rem" }}>
+                  <textarea 
+                    value={questJson}
+                    onChange={e => setQuestJson(e.target.value)}
+                    rows={12}
+                    style={{
+                      width: "100%",
+                      fontFamily: "monospace",
+                      fontSize: "0.8rem",
+                      padding: "10px",
+                      background: "var(--bg-color)",
+                      color: "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "6px"
+                    }}
+                  />
+                </div>
+                
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={savingQuest}
+                    style={{ flex: 1.5, justifyContent: "center", minHeight: "40px", borderRadius: "6px" }}
+                  >
+                    {savingQuest ? "Guardando..." : "Guardar JSON"}
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn"
+                    onClick={() => {
+                      if (confirm("¿Estás seguro de que deseas restablecer los valores predeterminados del cuestionario? Esto sobrescribirá los cambios no guardados.")) {
+                        const DEFAULT_CONFIG = {
+                          threshold: 22.99,
+                          noSignalValue: 70.0,
+                          ubicacion: {
+                            label_es: "Dónde se encuentra la CTO",
+                            label_uk: "Де знаходиться CTO",
+                            options: [
+                              { es: "Interior - En techo falso", uk: "Внутрішній - у підвісній стелі" },
+                              { es: "Interior > en la pared", uk: "Внутрішній > на стіні" },
+                              { es: "Poste", uk: "Стовп" },
+                              { es: "En Registro", uk: "В коробці/реєстрі" },
+                              { es: "Indicar el número de la planta > de metal, grande", uk: "Вказати номер поверху > металевий, великий" },
+                              { es: "Indicar el número de la planta > de madera", uk: "Вказати номер поверху > дерев'яний" },
+                              { es: "Indicar el número de la planta > en vertical", uk: "Вказати номер поверху > вертикальний" },
+                              { es: "Arqueta", uk: "Люк/Колодязь" },
+                              { es: "Riti", uk: "Ріті (щитова)" },
+                              { es: "Otros (introducir manualmente)", uk: "Інше (ввести вручну)" }
+                            ]
+                          },
+                          danos: {
+                            label_es: "¿La CTO está con daños, visibles suciedades?",
+                            label_uk: "Чи має CTO видимі пошкодження або бруд?",
+                            options: [
+                              { es: "Le falta la tapa", uk: "Відсутня кришка" },
+                              { es: "Tiene cables rotos o dañados", uk: "Має обірвані або пошкоджені кабелі" },
+                              { es: "Tiene cables doblados", uk: "Має загнуті кабелі" },
+                              { es: "No se puede cerrar", uk: "Не закривається" },
+                              { es: "Está sucia y/o llena de agua", uk: "Брудна та/або заповнена водою" },
+                              { es: "Le faltan enfrentadores", uk: "Відсутні з'єднувачі/адаптери" },
+                              { es: "Tiene los divisores/splitter rotos", uk: "Має зламані дільники/спліттери" }
+                            ]
+                          },
+                          llaves: {
+                            label_es: "¿Se requieren llaves?",
+                            label_uk: "Чи потрібні ключі?",
+                            options: [
+                              { es: "Nombre del presidente/conserje", uk: "Ім'я голови/консьєржа" },
+                              { es: "Número de teléfono", uk: "Номер телефону" },
+                              { es: "No tengo ningún dato", uk: "Немає жодних даних" }
+                            ]
+                          },
+                          antala: {
+                            label_es: "¿Se requiere Levantamiento en Antala?",
+                            label_uk: "Чи потрібне внесення в Antala?",
+                            text_yes: "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.",
+                            text_failed: "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:"
+                          },
+                          influencia: {
+                            label_es: "Área de influencia",
+                            label_uk: "Зона впливу",
+                            options: [
+                              { key: "porterillo", es: "Porterillo automático", uk: "Домофон", text: "Se adjunta foto del porterillo automático" },
+                              { key: "calle", es: "Calle", uk: "Вулиця" },
+                              { key: "otros", es: "Otros", uk: "Інше" }
+                            ]
+                          }
+                        };
+                        setQuestJson(JSON.stringify(DEFAULT_CONFIG, null, 2));
                       }
-                    };
-                    setQuestJson(JSON.stringify(DEFAULT_CONFIG, null, 2));
-                  }
                 }}
-                style={{ flex: 1, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", justifyContent: "center", minHeight: "40px", cursor: "pointer" }}
+                style={{ flex: 1, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", justifyContent: "center", minHeight: "40px", cursor: "pointer", borderRadius: "6px" }}
               >
-                Restablecer Predeterminados
+                Restablecer
               </button>
             </div>
           </form>
-        </div>
-
+        </details>
       </div>
     </div>
+  </div>
+</div>
   );
 }
