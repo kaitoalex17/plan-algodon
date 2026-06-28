@@ -370,7 +370,7 @@ export default function AdminPage() {
         borderTop: "1px solid var(--border-color)",
         paddingTop: "1rem"
       }}>
-        Plan Algodón - Versión 1.7.6
+        Plan Algodón - Versión 1.7.7
       </div>
     </div>
   );

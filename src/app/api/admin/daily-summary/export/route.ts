@@ -329,23 +329,29 @@ export async function POST(req: NextRequest) {
     }
 
     let dateParam = null;
+    let isTest = false;
     try {
       const body = await req.json();
       dateParam = body.date;
+      isTest = body.isTest === true;
     } catch (e) {}
 
     if (!dateParam) {
       const { searchParams } = new URL(req.url);
       dateParam = searchParams.get("date");
+      if (searchParams.get("isTest") === "true") {
+        isTest = true;
+      }
     }
 
-    // 1. Cargar configuraciones SMTP
+    // 1. Cargar configuraciones SMTP / de envío
     const settings = await prisma.setting.findMany();
     const config: Record<string, string> = {};
     for (const s of settings) {
       config[s.key] = s.value;
     }
 
+    const emailMethod = config["email_method"] || "smtp";
     const smtpHost = config["smtp_host"];
     const smtpPort = parseInt(config["smtp_port"] || "587");
     const smtpSecure = config["smtp_secure"] === "true";
@@ -353,8 +359,56 @@ export async function POST(req: NextRequest) {
     const smtpPass = config["smtp_pass"];
     const emailRecipients = config["email_recipients"];
 
-    if (!smtpHost || !smtpUser || !smtpPass || !emailRecipients) {
-      return NextResponse.json({ error: "Configuración SMTP incompleta o vacía en la base de datos." }, { status: 400 });
+    if (!emailRecipients) {
+      return NextResponse.json({ error: "No se han configurado destinatarios de correo." }, { status: 400 });
+    }
+
+    // Crear transportador nodemailer
+    let transporter;
+    if (emailMethod === "smtp") {
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        return NextResponse.json({ error: "Configuración SMTP incompleta o vacía en la base de datos." }, { status: 400 });
+      }
+      transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+    } else {
+      // Usar Sendmail local
+      transporter = nodemailer.createTransport({
+        sendmail: true,
+        newline: 'unix',
+        path: '/usr/sbin/sendmail'
+      });
+    }
+
+    const sender = emailMethod === "smtp" ? smtpUser : (smtpUser || "noreply@plan-algodon.com");
+
+    // Si es un correo de prueba de conexión, enviar un texto simple sin adjuntos
+    if (isTest) {
+      await transporter.sendMail({
+        from: `"Plan Algodón (Prueba)" <${sender}>`,
+        to: emailRecipients,
+        subject: `Prueba de Conexión (${emailMethod.toUpperCase()}) - Plan Algodón`,
+        text: `Este es un correo de prueba enviado mediante ${emailMethod.toUpperCase()} para verificar que la configuración de envío funciona correctamente.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-top: 0;">Prueba de Conexión</h2>
+            <p>Este es un correo de prueba para verificar que el método de envío <strong>${emailMethod.toUpperCase()}</strong> funciona correctamente en Plan Algodón.</p>
+            <p>Si has recibido este correo, ¡la conexión se ha validado con éxito!</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <div style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">
+              ${config["email_footer"] || 'Plan Algodón - Reportes Automatizados'}
+            </div>
+          </div>
+        `
+      });
+      return NextResponse.json({ success: true, message: `Correo de prueba (${emailMethod.toUpperCase()}) enviado correctamente a todos los destinatarios.` });
     }
 
     // 2. Obtener datos y generar adjuntos
@@ -362,26 +416,15 @@ export async function POST(req: NextRequest) {
     const excelBuffer = buildExcelBuffer(data.ctos, data.date);
     const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
 
-    // 3. Crear transportador nodemailer
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
-    });
-
     const host = req.headers.get("host") || "localhost:3000";
     const proto = req.headers.get("x-forwarded-proto") || "http";
     const publicLink = `${proto}://${host}/public-report`;
 
     const formattedDate = data.date.replace(/\//g, "-");
 
-    // 4. Enviar correo
+    // 4. Enviar correo con adjuntos
     await transporter.sendMail({
-      from: `"Plan Algodón Reporte" <${smtpUser}>`,
+      from: `"Plan Algodón Reporte" <${sender}>`,
       to: emailRecipients,
       subject: `Resumen Diario de Auditoría - ${data.date} (Plan Algodón)`,
       text: `Adjunto encontrarás el reporte de auditoría de hoy (${data.date}).\n\nTotal CTOs Auditadas hoy: ${data.ctos.length}\n\nEnlace de acceso público: ${publicLink}\nContraseña: netdata`,
@@ -418,7 +461,7 @@ export async function POST(req: NextRequest) {
       ]
     });
 
-    return NextResponse.json({ success: true, message: "Correo resumen enviado correctamente a todos los destinatarios." });
+    return NextResponse.json({ success: true, message: `Correo resumen (${emailMethod.toUpperCase()}) enviado correctamente a todos los destinatarios.` });
   } catch (error: any) {
     console.error("Error sending manual daily email summary:", error);
     return NextResponse.json({ error: "Error al enviar el correo: " + error.message }, { status: 500 });

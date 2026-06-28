@@ -294,7 +294,8 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
 
     console.log(`[Scheduler] Iniciando envío de reporte diario automático para ${madridDateStr}...`);
 
-    // 5. Cargar ajustes SMTP
+    // 5. Cargar ajustes de envío
+    const emailMethod = config["email_method"] || "smtp";
     const smtpHost = config["smtp_host"];
     const smtpPort = parseInt(config["smtp_port"] || "587");
     const smtpSecure = config["smtp_secure"] === "true";
@@ -302,26 +303,42 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
     const smtpPass = config["smtp_pass"];
     const emailRecipients = config["email_recipients"];
 
-    if (!smtpHost || !smtpUser || !smtpPass || !emailRecipients) {
-      console.warn("[Scheduler] SMTP config is incomplete. Cancelling automatic report send.");
+    if (!emailRecipients) {
+      console.warn("[Scheduler] No se han configurado destinatarios de correo.");
       return;
     }
+
+    // Crear transportador nodemailer
+    let transporter;
+    if (emailMethod === "smtp") {
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        console.warn("[Scheduler] SMTP config is incomplete. Cancelling automatic report send.");
+        return;
+      }
+      transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+    } else {
+      // Usar Sendmail local
+      transporter = nodemailer.createTransport({
+        sendmail: true,
+        newline: 'unix',
+        path: '/usr/sbin/sendmail'
+      });
+    }
+
+    const sender = emailMethod === "smtp" ? smtpUser : (smtpUser || "noreply@plan-algodon.com");
 
     // 6. Obtener datos y compilar adjuntos
     const data = await getDailySummaryData(prisma);
     const excelBuffer = buildExcelBuffer(data.ctos);
     const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
-
-    // 7. Enviar correo
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
-    });
 
     // Usar localhost o fallback ya que es un proceso en background sin req headers
     const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -330,7 +347,7 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
     const formattedDate = data.date.replace(/\//g, "-");
 
     await transporter.sendMail({
-      from: `"Plan Algodón Reporte" <${smtpUser}>`,
+      from: `"Plan Algodón Reporte" <${sender}>`,
       to: emailRecipients,
       subject: `Resumen Diario de Auditoría - ${data.date} (Plan Algodón)`,
       text: `Adjunto encontrarás el reporte de auditoría automático de hoy (${data.date}).\n\nTotal CTOs Auditadas hoy: ${data.ctos.length}\n\nEnlace de acceso público: ${publicLink}\nContraseña: netdata`,

@@ -47,6 +47,7 @@ export default function DailySummaryPage() {
   const [emailScheduleEnabled, setEmailScheduleEnabled] = useState(false);
   const [publicReportPassword, setPublicReportPassword] = useState("netdata");
   const [emailFooter, setEmailFooter] = useState("");
+  const [emailMethod, setEmailMethod] = useState("smtp");
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -73,6 +74,7 @@ export default function DailySummaryPage() {
         setEmailScheduleEnabled(settings.emailScheduleEnabled || false);
         setPublicReportPassword(settings.publicReportPassword || "netdata");
         setEmailFooter(settings.emailFooter || "");
+        setEmailMethod(settings.emailMethod || "smtp");
       }
     } catch (err) {
       console.error("Error cargando resumen diario:", err);
@@ -102,11 +104,12 @@ export default function DailySummaryPage() {
           emailScheduleHour: parseInt(emailScheduleHour),
           emailScheduleEnabled,
           publicReportPassword,
-          emailFooter
+          emailFooter,
+          emailMethod
         })
       });
       if (res.ok) {
-        alert("Ajustes SMTP y planificación guardados correctamente.");
+        alert("Configuración de envío y planificación guardados correctamente.");
         loadData();
       } else {
         alert("Error al guardar la configuración.");
@@ -119,9 +122,15 @@ export default function DailySummaryPage() {
     }
   };
 
+  const [sendingManual, setSendingManual] = useState(false);
+
   const handleSendTestEmail = async () => {
-    if (!smtpHost || !smtpUser || !smtpPass || !emailRecipients) {
-      alert("Por favor rellena primero la configuración SMTP y destinatarios.");
+    if (!emailRecipients) {
+      alert("Por favor introduce los destinatarios del correo.");
+      return;
+    }
+    if (emailMethod === "smtp" && (!smtpHost || !smtpUser || !smtpPass)) {
+      alert("Por favor rellena primero la configuración SMTP.");
       return;
     }
     setSendingTest(true);
@@ -129,19 +138,49 @@ export default function DailySummaryPage() {
       const res = await fetch("/api/admin/daily-summary/export", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: selectedDate })
+        body: JSON.stringify({ date: selectedDate, isTest: true })
       });
       const data = await res.json();
       if (res.ok) {
         alert(data.message || "Correo de prueba enviado con éxito.");
       } else {
-        alert(data.error || "Error al enviar el correo.");
+        alert(data.error || "Error al enviar el correo de prueba.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error en el servidor al realizar el envío.");
+      alert("Error en el servidor al realizar el envío de prueba.");
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const handleSendDailyReportManual = async () => {
+    if (!emailRecipients) {
+      alert("Por favor introduce los destinatarios del correo.");
+      return;
+    }
+    if (emailMethod === "smtp" && (!smtpHost || !smtpUser || !smtpPass)) {
+      alert("Por favor rellena primero la configuración SMTP.");
+      return;
+    }
+    setSendingManual(true);
+    try {
+      const res = await fetch("/api/admin/daily-summary/export", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate, isTest: false })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Reporte diario enviado correctamente.");
+      } else {
+        alert(data.error || "Error al enviar el reporte.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor al enviar el reporte.");
+    } finally {
+      setSendingManual(false);
     }
   };
 
@@ -259,6 +298,19 @@ export default function DailySummaryPage() {
           <form onSubmit={handleSaveSettings} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
             
             <div style={{ gridColumn: "span 2" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Método de Envío</label>
+              <select 
+                value={emailMethod} 
+                onChange={e => setEmailMethod(e.target.value)} 
+                className="input-field" 
+                style={{ padding: "8px 12px", minHeight: "38px" }}
+              >
+                <option value="smtp">SMTP Personalizado (Servidor de correo externo)</option>
+                <option value="sendmail">Sendmail del Servidor Local (Sin credenciales, recomendado si falla SMTP)</option>
+              </select>
+            </div>
+
+            <div style={{ gridColumn: "span 2", opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Servidor SMTP (Host)</label>
               <input 
                 type="text" 
@@ -266,11 +318,12 @@ export default function DailySummaryPage() {
                 onChange={e => setSmtpHost(e.target.value)} 
                 className="input-field" 
                 placeholder="smtp.example.com"
+                disabled={emailMethod === "sendmail"}
                 style={{ padding: "8px 12px", minHeight: "38px" }}
               />
             </div>
 
-            <div>
+            <div style={{ opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Puerto SMTP</label>
               <input 
                 type="text" 
@@ -278,22 +331,24 @@ export default function DailySummaryPage() {
                 onChange={e => setSmtpPort(e.target.value)} 
                 className="input-field" 
                 placeholder="587"
+                disabled={emailMethod === "sendmail"}
                 style={{ padding: "8px 12px", minHeight: "38px" }}
               />
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <input 
                 type="checkbox" 
                 id="smtpSecure"
                 checked={smtpSecure} 
                 onChange={e => setSmtpSecure(e.target.checked)} 
-                style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)", cursor: "pointer" }}
+                disabled={emailMethod === "sendmail"}
+                style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)", cursor: emailMethod === "sendmail" ? "default" : "pointer" }}
               />
-              <label htmlFor="smtpSecure" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}>Conexión Segura (SSL/TLS)</label>
+              <label htmlFor="smtpSecure" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: emailMethod === "sendmail" ? "default" : "pointer" }}>Conexión Segura (SSL/TLS)</label>
             </div>
 
-            <div>
+            <div style={{ opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Usuario SMTP (Email)</label>
               <input 
                 type="text" 
@@ -301,11 +356,12 @@ export default function DailySummaryPage() {
                 onChange={e => setSmtpUser(e.target.value)} 
                 className="input-field" 
                 placeholder="noreply@example.com"
+                disabled={emailMethod === "sendmail"}
                 style={{ padding: "8px 12px", minHeight: "38px" }}
               />
             </div>
 
-            <div>
+            <div style={{ opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Contraseña SMTP</label>
               <input 
                 type="password" 
@@ -313,6 +369,7 @@ export default function DailySummaryPage() {
                 onChange={e => setSmtpPass(e.target.value)} 
                 className="input-field" 
                 placeholder="••••••••••••"
+                disabled={emailMethod === "sendmail"}
                 style={{ padding: "8px 12px", minHeight: "38px" }}
               />
             </div>
@@ -380,22 +437,34 @@ export default function DailySummaryPage() {
               />
             </div>
 
-            <div style={{ gridColumn: "span 2", display: "flex", gap: "10px", marginTop: "1rem" }}>
-              <button
-                type="button"
-                onClick={handleSendTestEmail}
-                className="btn"
-                disabled={sendingTest}
-                style={{ flex: 1, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", fontWeight: 700, minHeight: "44px" }}
-              >
-                {sendingTest ? "Enviando..." : "📧 Enviar Correo de Prueba"}
-              </button>
+            <div style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", gap: "10px", marginTop: "1rem" }}>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={handleSendTestEmail}
+                  className="btn"
+                  disabled={sendingTest || sendingManual || savingSettings}
+                  style={{ flex: 1, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", fontWeight: 700, minHeight: "44px" }}
+                >
+                  {sendingTest ? "Enviando Prueba..." : "📧 Enviar Correo de Prueba"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendDailyReportManual}
+                  className="btn"
+                  disabled={sendingTest || sendingManual || savingSettings}
+                  style={{ flex: 1.5, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", fontWeight: 700, minHeight: "44px" }}
+                >
+                  {sendingManual ? "Enviando Reporte..." : "✉️ Enviar Reporte del Día (Manual)"}
+                </button>
+              </div>
 
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={savingSettings}
-                style={{ flex: 1.5, fontWeight: 700, minHeight: "44px", justifyContent: "center" }}
+                disabled={sendingTest || sendingManual || savingSettings}
+                style={{ width: "100%", fontWeight: 700, minHeight: "44px", justifyContent: "center" }}
               >
                 {savingSettings ? "Guardando..." : "💾 Guardar Configuración"}
               </button>
