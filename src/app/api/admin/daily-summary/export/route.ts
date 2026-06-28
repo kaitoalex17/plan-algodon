@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
-import nodemailer from "nodemailer";
 import { robotoBase64 } from "@/assets/fonts/robotoBase64";
 import fs from "fs";
 import { helveticaAfm } from "@/assets/fonts/helveticaAfm";
+import { sendMail, buildMailConfigFromSettings } from "@/lib/mailer";
+
 
 // Interceptar lecturas de Helvetica.afm para evitar ENOENT en entornos standalone / Docker
 if (!(fs as any).__helvetica_patched) {
@@ -329,7 +330,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Enviar correo manual/de prueba
+// POST: Enviar correo manual o de prueba
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -337,193 +338,92 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    let dateParam = null;
+    let dateParam: string | null = null;
     let isTest = false;
     try {
       const body = await req.json();
-      dateParam = body.date;
+      dateParam = body.date ?? null;
       isTest = body.isTest === true;
     } catch (e) {}
 
     if (!dateParam) {
       const { searchParams } = new URL(req.url);
       dateParam = searchParams.get("date");
-      if (searchParams.get("isTest") === "true") {
-        isTest = true;
-      }
+      if (searchParams.get("isTest") === "true") isTest = true;
     }
 
-    // 1. Cargar configuraciones SMTP / de envío
+    // Cargar configuracion de la BD
     const settings = await prisma.setting.findMany();
     const config: Record<string, string> = {};
-    for (const s of settings) {
-      config[s.key] = s.value;
-    }
+    for (const s of settings) config[s.key] = s.value;
 
-    const emailMethod = config["email_method"] || "smtp";
-    const smtpHost = config["smtp_host"];
-    const smtpPort = parseInt(config["smtp_port"] || "587");
-    const smtpSecure = config["smtp_secure"] === "true";
-    const smtpUser = config["smtp_user"];
-    const smtpPass = config["smtp_pass"];
-    const emailRecipients = config["email_recipients"];
+    const mailCfg = buildMailConfigFromSettings(config);
+    const emailRecipients = (config["email_recipients"] || "").trim();
+    const emailFooter = config["email_footer"] || "Plan Algodon - Reportes Automatizados";
 
     if (!emailRecipients) {
-      return NextResponse.json({ error: "No se han configurado destinatarios de correo." }, { status: 400 });
+      return NextResponse.json({
+        error: "No se han configurado destinatarios de correo. Ve a Ajustes y anade al menos un destinatario."
+      }, { status: 400 });
     }
 
-    // Crear transportador nodemailer
-    let transporter: any;
-    if (emailMethod === "smtp") {
-      if (!smtpHost || !smtpUser || !smtpPass) {
-        return NextResponse.json({ error: "Configuración SMTP incompleta o vacía en la base de datos." }, { status: 400 });
-      }
-
-      // Determinar si usar SSL directo (puerto 465) o STARTTLS (587/25)
-      const useSecure = smtpPort === 465 ? true : false;
-
-      transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: useSecure,        // true solo para puerto 465 (SSL directo)
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        },
-        tls: {
-          // Brevo y algunos servidores usan certificados que pueden fallar la verificación estricta
-          rejectUnauthorized: false,
-          // Permitir versiones TLS antiguas si el servidor lo requiere
-          ciphers: "SSLv3"
-        },
-        connectionTimeout: 15000, // 15 segundos máximo de espera de conexión
-        greetingTimeout: 15000,
-        socketTimeout: 30000,
-      });
-    } else {
-      // Usar Sendmail local
-      transporter = nodemailer.createTransport({
-        sendmail: true,
-        newline: 'unix',
-        path: '/usr/sbin/sendmail'
-      });
-    }
-
-    // Verificar la conexión antes de intentar enviar
-    if (emailMethod === "smtp") {
-      try {
-        await transporter.verify();
-        console.log("[Email] Conexión SMTP verificada correctamente.");
-      } catch (verifyErr: any) {
-        console.error("[Email] Fallo en la verificación SMTP:", verifyErr);
-        return NextResponse.json({
-          error: `Error de conexión SMTP: ${verifyErr.message}`,
-          details: {
-            host: smtpHost,
-            port: smtpPort,
-            user: smtpUser,
-            hint: smtpPort === 587
-              ? "Puerto 587 detectado: asegúrate de que 'Conexión Segura (SSL/TLS)' esté DESACTIVADA. Brevo usa STARTTLS en este puerto."
-              : smtpPort === 465
-              ? "Puerto 465 detectado: asegúrate de que 'Conexión Segura (SSL/TLS)' esté ACTIVADA."
-              : "Verifica los datos del servidor SMTP de Brevo: smtp-relay.brevo.com / puerto 587."
-          }
-        }, { status: 502 });
-      }
-    }
-
-    const sender = emailMethod === "smtp" ? smtpUser : (smtpUser || "noreply@plan-algodon.com");
-
-    // Si es un correo de prueba de conexión, enviar un texto simple sin adjuntos
+    // Correo de prueba (sin adjuntos)
     if (isTest) {
-      const info = await transporter.sendMail({
-        from: `"Plan Algodón (Prueba)" <${sender}>`,
+      const result = await sendMail({
         to: emailRecipients,
-        subject: `Prueba de Conexión (${emailMethod.toUpperCase()}) - Plan Algodón`,
-        text: `Este es un correo de prueba enviado mediante ${emailMethod.toUpperCase()} para verificar que la configuración de envío funciona correctamente.`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-top: 0;">Prueba de Conexión</h2>
-            <p>Este es un correo de prueba para verificar que el método de envío <strong>${emailMethod.toUpperCase()}</strong> funciona correctamente en Plan Algodón.</p>
-            <p>Si has recibido este correo, ¡la conexión se ha validado con éxito!</p>
-            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-            <div style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">
-              ${config["email_footer"] || 'Plan Algodón - Reportes Automatizados'}
-            </div>
-          </div>
-        `
+        subject: `Prueba de Conexion (${mailCfg.method.toUpperCase()}) - Plan Algodon`,
+        text: `Correo de prueba desde Plan Algodon usando el metodo ${mailCfg.method.toUpperCase()}.`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px;"><h2 style="color:#3b82f6;border-bottom:2px solid #3b82f6;padding-bottom:10px;margin-top:0;">Prueba de Conexion OK</h2><p>El metodo <strong>${mailCfg.method.toUpperCase()}</strong> esta funcionando correctamente.</p><p>Si lo recibes, la configuracion es correcta!</p><hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/><div style="font-size:0.8rem;color:#94a3b8;text-align:center;">${emailFooter}</div></div>`,
+      }, mailCfg);
+
+      return NextResponse.json({
+        success: true,
+        message: `Correo de prueba (${mailCfg.method.toUpperCase()}) enviado a: ${emailRecipients}`,
+        messageId: result.messageId,
       });
-      console.log("[Email] Correo de prueba enviado. MessageId:", info?.messageId);
-      return NextResponse.json({ success: true, message: `Correo de prueba (${emailMethod.toUpperCase()}) enviado correctamente a: ${emailRecipients}` });
     }
 
-    // 2. Obtener datos y generar adjuntos
+    // Reporte completo con adjuntos
     const data = await getDailySummaryData(dateParam);
     const excelBuffer = buildExcelBuffer(data.ctos, data.date);
-    const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
+    const pdfBuffer   = await buildPdfBuffer(data.ctos, data.date);
 
-    const host = req.headers.get("host") || "localhost:3000";
-    const proto = req.headers.get("x-forwarded-proto") || "http";
-    const publicLink = `${proto}://${host}/public-report`;
+    const reqHost  = req.headers.get("host") || "localhost:3000";
+    const reqProto = req.headers.get("x-forwarded-proto") || "http";
+    const publicToken = config["public_access_token"] || "";
+    const publicLink = publicToken
+      ? `${reqProto}://${reqHost}/public-report?token=${publicToken}`
+      : `${reqProto}://${reqHost}/public-report`;
 
     const formattedDate = data.date.replace(/\//g, "-");
+    const correctas = data.ctos.filter((c: any) => c.status === "CORRECTO").length;
+    const fallidas  = data.ctos.filter((c: any) => c.status === "FALLO").length;
+    const passLine  = publicToken
+      ? `<p style="font-size:0.82rem;color:#64748b;text-align:center;">* Acceso directo sin contrasena</p>`
+      : `<p style="font-size:0.82rem;color:#64748b;text-align:center;">* Contrasena: <strong>${config["public_report_password"] || "netdata"}</strong></p>`;
 
-    // 4. Enviar correo con adjuntos
-    await transporter.sendMail({
-      from: `"Plan Algodón Reporte" <${sender}>`,
+    const result = await sendMail({
       to: emailRecipients,
-      subject: `Resumen Diario de Auditoría - ${data.date} (Plan Algodón)`,
-      text: `Adjunto encontrarás el reporte de auditoría de hoy (${data.date}).\n\nTotal CTOs Auditadas hoy: ${data.ctos.length}\n\nEnlace de acceso público: ${publicLink}\nContraseña: netdata`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <h2 style="color: #f97316; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-top: 0;">Plan Algodón - Reporte Diario</h2>
-          <p>Se ha generado el reporte de auditoría diario correspondiente al día <strong>${data.date}</strong>.</p>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 4px 0;">📊 <strong>Resumen de actividad:</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Total CTOs Auditadas hoy: <strong>${data.ctos.length}</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Correctas: <strong>${data.ctos.filter(c => c.status === "CORRECTO").length}</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Fallidas: <strong>${data.ctos.filter(c => c.status === "FALLO").length}</strong></p>
-          </div>
-          <p>Puedes acceder a la visualización del mapa y lista pública en tiempo real aquí:</p>
-          <p style="text-align: center; margin: 24px 0;">
-            <a href="${publicLink}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ver Reporte Interactivo</a>
-          </p>
-          <p style="font-size: 0.85rem; color: #64748b;">* Contraseña de acceso predeterminada: <strong>netdata</strong> (o la configurada por el administrador).</p>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <div style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">
-            ${config["email_footer"] || 'Plan Algodón - Reportes Automatizados'}
-          </div>
-        </div>
-      `,
+      subject: `Resumen Diario de Auditoria - ${data.date} (Plan Algodon)`,
+      text: `Reporte del ${data.date}.\nCTOs: ${data.ctos.length} | Correctas: ${correctas} | Fallidas: ${fallidas}\nAcceso: ${publicLink}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px;"><h2 style="color:#f97316;border-bottom:2px solid #f97316;padding-bottom:10px;margin-top:0;">Plan Algodon - Reporte Diario</h2><p>Reporte del dia <strong>${data.date}</strong>.</p><div style="background:#f8fafc;padding:15px;border-radius:6px;margin:20px 0;border-left:4px solid #f97316;"><p style="margin:4px 0;font-weight:bold;">Resumen:</p><p style="margin:4px 0;padding-left:10px;">Total: <strong>${data.ctos.length}</strong></p><p style="margin:4px 0;padding-left:10px;">Correctas: <strong style="color:#166534">${correctas}</strong></p><p style="margin:4px 0;padding-left:10px;">Fallidas: <strong style="color:#991b1b">${fallidas}</strong></p></div><p>Se adjuntan informe <strong>PDF</strong> y <strong>Excel</strong>.</p><p style="text-align:center;margin:24px 0;"><a href="${publicLink}" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Ver Reporte Interactivo</a></p>${passLine}<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/><div style="font-size:0.8rem;color:#94a3b8;text-align:center;">${emailFooter}</div></div>`,
       attachments: [
-        {
-          filename: `resumen_diario_${formattedDate}.xlsx`,
-          content: excelBuffer
-        },
-        {
-          filename: `resumen_diario_${formattedDate}.pdf`,
-          content: pdfBuffer
-        }
-      ]
+        { filename: `resumen_diario_${formattedDate}.xlsx`, content: excelBuffer },
+        { filename: `resumen_diario_${formattedDate}.pdf`,  content: pdfBuffer  },
+      ],
+    }, mailCfg);
+
+    console.log("[Email] Reporte enviado. MessageId:", result.messageId, "->", emailRecipients);
+    return NextResponse.json({
+      success: true,
+      message: `Reporte (${mailCfg.method.toUpperCase()}) enviado a: ${emailRecipients}`,
+      messageId: result.messageId,
     });
 
-    console.log("[Email] Reporte diario enviado correctamente a:", emailRecipients);
-    return NextResponse.json({ success: true, message: `Correo resumen (${emailMethod.toUpperCase()}) enviado correctamente a: ${emailRecipients}` });
   } catch (error: any) {
-    console.error("[Email] Error completo al enviar:", error);
-    // Proveer mensaje de error detallado con pistas específicas por código de error
-    let hint = "";
-    if (error.code === "ECONNREFUSED") hint = "El servidor SMTP rechazó la conexión. Verifica host y puerto.";
-    else if (error.code === "ETIMEDOUT") hint = "Tiempo de espera agotado. El servidor no responde. Verifica host, puerto o firewall.";
-    else if (error.code === "EAUTH") hint = "Autenticación fallida. Verifica usuario y contraseña SMTP de Brevo.";
-    else if (error.responseCode === 535) hint = "Credenciales incorrectas (535). En Brevo, el 'usuario' es tu correo de cuenta y la 'contraseña' es la SMTP Key de Brevo (no tu contraseña de login).";
-    else if (error.responseCode === 550) hint = "El remitente (from) está bloqueado o no verificado en Brevo. Verifica que el dominio esté validado en tu cuenta de Brevo.";
-    else if (error.message?.includes("wrong version")) hint = "Error SSL. En el puerto 587, desactiva 'Conexión Segura (SSL/TLS)'. En el puerto 465, actívala.";
-    
+    console.error("[Email] Error al enviar:", error);
     return NextResponse.json({
       error: "Error al enviar el correo: " + error.message,
-      hint: hint || undefined,
-      code: error.code || error.responseCode || undefined
     }, { status: 500 });
   }
 }

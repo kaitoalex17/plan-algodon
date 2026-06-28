@@ -36,7 +36,7 @@ export default function DailySummaryPage() {
     ctos: []
   });
 
-  // SMTP Settings form
+  // Email/SMTP Settings form
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("587");
   const [smtpSecure, setSmtpSecure] = useState(false);
@@ -47,10 +47,14 @@ export default function DailySummaryPage() {
   const [emailScheduleEnabled, setEmailScheduleEnabled] = useState(false);
   const [publicReportPassword, setPublicReportPassword] = useState("netdata");
   const [emailFooter, setEmailFooter] = useState("");
-  const [emailMethod, setEmailMethod] = useState("smtp");
+  const [emailMethod, setEmailMethod] = useState("brevo");
   const [publicAccessToken, setPublicAccessToken] = useState("");
   const [generatingToken, setGeneratingToken] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+  // Brevo API
+  const [brevoApiKey, setBrevoApiKey] = useState("");
+  const [brevoSenderEmail, setBrevoSenderEmail] = useState("");
+  const [brevoSenderName, setBrevoSenderName] = useState("Plan Algodón");
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -77,8 +81,11 @@ export default function DailySummaryPage() {
         setEmailScheduleEnabled(settings.emailScheduleEnabled || false);
         setPublicReportPassword(settings.publicReportPassword || "netdata");
         setEmailFooter(settings.emailFooter || "");
-        setEmailMethod(settings.emailMethod || "smtp");
+        setEmailMethod(settings.emailMethod || "brevo");
         setPublicAccessToken(settings.publicAccessToken || "");
+        setBrevoApiKey(settings.brevoApiKey || "");
+        setBrevoSenderEmail(settings.brevoSenderEmail || "");
+        setBrevoSenderName(settings.brevoSenderName || "Plan Algodón");
       }
     } catch (err) {
       console.error("Error cargando resumen diario:", err);
@@ -99,18 +106,10 @@ export default function DailySummaryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          smtpHost,
-          smtpPort: parseInt(smtpPort),
-          smtpSecure,
-          smtpUser,
-          smtpPass,
-          emailRecipients,
-          emailScheduleHour: parseInt(emailScheduleHour),
-          emailScheduleEnabled,
-          publicReportPassword,
-          emailFooter,
-          emailMethod,
-          publicAccessToken
+          smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
+          emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
+          emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod, publicAccessToken,
+          brevoApiKey, brevoSenderEmail, brevoSenderName
         })
       });
       if (res.ok) {
@@ -206,6 +205,7 @@ export default function DailySummaryPage() {
           smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
           emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
           emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod,
+          brevoApiKey, brevoSenderEmail, brevoSenderName,
           publicAccessToken: newToken
         })
       });
@@ -234,6 +234,7 @@ export default function DailySummaryPage() {
           smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
           emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
           emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod,
+          brevoApiKey, brevoSenderEmail, brevoSenderName,
           publicAccessToken: ""
         })
       });
@@ -496,7 +497,7 @@ export default function DailySummaryPage() {
         {/* Ajustes de Correo y Planificación */}
         <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <h2 style={{ marginBottom: "1.25rem", fontSize: "1.25rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
-            Ajustes SMTP y Envío Automático
+            Ajustes de Correo y Envío Automático
           </h2>
 
           <form onSubmit={handleSaveSettings} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
@@ -509,10 +510,55 @@ export default function DailySummaryPage() {
                 className="input-field" 
                 style={{ padding: "8px 12px", minHeight: "38px" }}
               >
-                <option value="smtp">SMTP Personalizado (Servidor de correo externo)</option>
-                <option value="sendmail">Sendmail del Servidor Local (Sin credenciales, recomendado si falla SMTP)</option>
+                <option value="brevo">🚀 Brevo API (Recomendado) — sin SMTP, fiable con adjuntos</option>
+                <option value="smtp">SMTP Personalizado — servidor externo con credenciales</option>
+                <option value="sendmail">Sendmail Local — sin credenciales (servidor Linux)</option>
               </select>
             </div>
+
+            {/* Sección Brevo API */}
+            {emailMethod === "brevo" && (
+              <>
+                <div style={{ gridColumn: "span 2", background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: "8px", padding: "12px 16px", fontSize: "0.82rem", color: "#92400e" }}>
+                  <strong>🔑 Cómo obtener la API Key de Brevo:</strong><br/>
+                  Accede a <strong>Brevo.com → My Account → SMTP &amp; API → API Keys</strong> y crea una clave con permisos <em>Transactional emails</em>. El “Email remitente” debe ser un dominio/email verificado en <strong>Brevo → Senders &amp; IP</strong>.
+                </div>
+                <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Clave API de Brevo</label>
+                  <input 
+                    type="password" 
+                    value={brevoApiKey} 
+                    onChange={e => setBrevoApiKey(e.target.value)} 
+                    className="input-field" 
+                    placeholder="xkeysib-..."
+                    autoComplete="new-password"
+                    style={{ padding: "8px 12px", minHeight: "38px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Email Remitente (verificado en Brevo)</label>
+                  <input 
+                    type="email" 
+                    value={brevoSenderEmail} 
+                    onChange={e => setBrevoSenderEmail(e.target.value)} 
+                    className="input-field" 
+                    placeholder="informes@tudominio.com"
+                    style={{ padding: "8px 12px", minHeight: "38px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Nombre del Remitente</label>
+                  <input 
+                    type="text" 
+                    value={brevoSenderName} 
+                    onChange={e => setBrevoSenderName(e.target.value)} 
+                    className="input-field" 
+                    placeholder="Plan Algodón"
+                    style={{ padding: "8px 12px", minHeight: "38px" }}
+                  />
+                </div>
+              </>
+            )}
 
             <div style={{ gridColumn: "span 2", opacity: emailMethod === "sendmail" ? 0.5 : 1, transition: "opacity 0.2s" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Servidor SMTP (Host)</label>
