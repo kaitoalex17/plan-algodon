@@ -20,7 +20,7 @@ type DamageKey =
 export default function FormGuidePage() {
   return (
     <Suspense fallback={
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#090d16", color: "white" }}>
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg-color, #090d16)", color: "var(--text-color, white)" }}>
         <p style={{ fontWeight: 700, fontFamily: "system-ui, sans-serif" }}>Cargando Guía de Formulario...</p>
       </div>
     }>
@@ -86,6 +86,31 @@ function FormGuideContent() {
   const [generatedComment, setGeneratedComment] = useState("");
   const [showResultModal, setShowResultModal] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Allow scrolling on mobile by adding body.admin-page on mount, and load page theme
+  useEffect(() => {
+    // Enable mobile scrolling
+    document.body.classList.add("admin-page");
+
+    // Load active map state theme
+    fetch("/api/users/map-state")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.theme) {
+          document.body.classList.forEach(className => {
+            if (className.startsWith("theme-")) {
+              document.body.classList.remove(className);
+            }
+          });
+          document.body.classList.add(`theme-${data.theme}`);
+        }
+      })
+      .catch(err => console.error("Error loading theme:", err));
+
+    return () => {
+      document.body.classList.remove("admin-page");
+    };
+  }, []);
 
   // Load config & CTO data
   useEffect(() => {
@@ -157,7 +182,7 @@ function FormGuideContent() {
 
   if (authStatus === "loading" || !config) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#090d16", color: "white" }}>
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg-color, #090d16)", color: "var(--text-color, white)" }}>
         <p style={{ fontWeight: 700, fontFamily: "system-ui, sans-serif" }}>Cargando Guía de Formulario...</p>
       </div>
     );
@@ -187,13 +212,38 @@ function FormGuideContent() {
     setCalleNumeros(updated);
   };
 
+  // Check if form has modified data
+  const isDirty = () => {
+    return (
+      ubicacionOption !== "" ||
+      ubicacionOtros !== "" ||
+      tieneDanos !== null ||
+      requiereLlaves !== null ||
+      splitters.some(s => s.signal !== "") ||
+      requiereAntala !== null ||
+      influenciaPorterillo ||
+      influenciaCalle ||
+      influenciaOtros
+    );
+  };
+
+  const handleClose = () => {
+    if (isDirty()) {
+      if (confirm("¿Estás seguro de que deseas salir? Los datos no guardados se perderán.")) {
+        window.close();
+      }
+    } else {
+      window.close();
+    }
+  };
+
   const generateReportText = () => {
     const lines: string[] = [];
 
     // 1. Ubicación (Optional - omitted if blank)
     let finalUbi = "";
     if (ubicacionOption && ubiRequiresInput(ubicacionOption)) {
-      finalUbi = ubicacionOtros.trim();
+      finalUbi = `${ubicacionOption} (${ubicacionOtros.trim()})`;
     } else if (ubicacionOption) {
       finalUbi = ubicacionOption.trim();
     }
@@ -206,7 +256,7 @@ function FormGuideContent() {
       const selectedDanos: string[] = [];
       const keysMap: Record<DamageKey, string> = {
         tapa: "Le falta la tapa",
-        rotos: "Tiene cables rotos o daños",
+        rotos: "Tiene cables rotos o dañados",
         doblados: "Tiene cables doblados",
         cerrar: "No se puede cerrar",
         sucia: "Está sucia y/o llena de agua",
@@ -233,49 +283,42 @@ function FormGuideContent() {
       lines.push(`- Se requieren llaves para acceder a la CTO. ${contactStr}`);
     }
 
-    // 4. Splitters Attenuation & Antala Failures
+    // 4. Antala Sincronismo (Optional - omitted if blank)
     const threshold = config.threshold || 22.99;
     const noSignalVal = config.noSignalValue || 70.0;
-
-    const splitterComments: string[] = [];
     const antalaErrors: string[] = [];
 
     splitters.forEach((s, idx) => {
       if (!s.signal) return;
-      
-      let signalStr = s.signal.trim();
-      if (!signalStr.startsWith("-")) {
-        signalStr = "-" + signalStr;
-      }
-      
-      const numVal = Math.abs(parseFloat(signalStr));
-      
+      const numVal = Math.abs(parseFloat(s.signal));
       if (!isNaN(numVal)) {
         if (numVal === noSignalVal) {
-          splitterComments.push(`* Divisor ${idx + 1}: ${signalStr} dBm (No hay señal)`);
           antalaErrors.push(`- No hay señal en el divisor/splitter ${idx + 1}`);
         } else if (numVal > threshold) {
-          splitterComments.push(`* Divisor ${idx + 1}: ${signalStr} dBm (Señal elevada, se requiere mejorar o reparar)`);
           antalaErrors.push(`- La señal es elevada en el divisor/splitter ${idx + 1}`);
-        } else {
-          splitterComments.push(`* Divisor ${idx + 1}: ${signalStr} dBm`);
         }
       }
     });
 
-    if (splitterComments.length > 0) {
-      lines.push("- Potencias ópticas registradas:");
-      splitterComments.forEach(sc => lines.push(`  ${sc}`));
-    }
-
-    // 5. Antala Sincronismo (Optional - omitted if blank)
     if (requiereAntala === true) {
       if (antalaErrors.length > 0) {
-        lines.push("- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:");
-        antalaErrors.forEach(ae => lines.push(`  ${ae}`));
+        lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
       } else {
         lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
       }
+    }
+
+    // Space and Splitters (only the numbers!)
+    const signalNumbers = splitters
+      .map(s => s.signal.trim())
+      .filter(s => s !== "")
+      .map(s => s.startsWith("-") ? s : `-${s}`);
+
+    if (signalNumbers.length > 0) {
+      // Large space after sincronismo (dos saltos de línea)
+      lines.push(`\n\n${signalNumbers.join("\n")}\n\n`);
+    } else {
+      lines.push("\n");
     }
 
     // 6. Área de influencia (Optional - omitted if blank)
@@ -311,7 +354,7 @@ function FormGuideContent() {
       
       let finalUbi = ubicacionOption;
       if (ubiRequiresInput(ubicacionOption)) {
-        finalUbi = ubicacionOtros;
+        finalUbi = `${ubicacionOption} (${ubicacionOtros.trim()})`;
       }
 
       const formattedSplitters = splitters.map(s => {
@@ -378,7 +421,7 @@ function FormGuideContent() {
     // Q1
     q1Title: lang === "es" ? "1. ¿Dónde se encuentra la CTO?" : "1. Де знаходиться CTO?",
     q1Label: lang === "es" ? "Selecciona la ubicación:" : "Оберіть розташування:",
-    q1WriteOther: lang === "es" ? "Especifica la ubicación (otros):" : "Вкажіть розташування (інше):",
+    q1WriteOther: lang === "es" ? "Especifica la planta o detalles (opcional):" : "Вкажіть поверх або деталі (опціонально):",
 
     // Q2
     q2Title: lang === "es" ? "2. ¿La CTO tiene daños o suciedad visible?" : "2. Чи має CTO видимі пошкодження або бруд?",
@@ -390,7 +433,7 @@ function FormGuideContent() {
       rotos: lang === "es" ? "Tiene cables rotos o dañados" : "Має обірвані або пошкоджені кабелі",
       doblados: lang === "es" ? "Tiene cables doblados" : "Має загнуті кабелі",
       cerrar: lang === "es" ? "No se puede cerrar" : "Не закривається",
-      sucia: lang === "es" ? "Está sucia y/o llena de agua" : "Брудна та/аora заповнена водою",
+      sucia: lang === "es" ? "Está sucia y/o llena de agua" : "Брудна та/або заповнена водою",
       enfrentadores: lang === "es" ? "Le faltan enfrentadores" : "Відсутні з'єднувачі/адаптери",
       splitterRoto: lang === "es" ? "Tiene los divisores/splitter rotos" : "Має зламані дільники/спліттери"
     },
@@ -432,7 +475,16 @@ function FormGuideContent() {
 
   function ubiRequiresInput(val: string) {
     const v = val.toLowerCase();
-    return v.includes("indicar") || v.includes("otros") || v.includes("інше") || v.includes("вказати");
+    return (
+      v.includes("indicar") ||
+      v.includes("otros") ||
+      v.includes("techo falso") ||
+      v.includes("registro") ||
+      v.includes("коробці") ||
+      v.includes("стелі") ||
+      v.includes("інше") ||
+      v.includes("вказати")
+    );
   }
 
   // Navigate forward
@@ -474,8 +526,8 @@ function FormGuideContent() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#090d16",
-      color: "#f8fafc",
+      background: "var(--bg-color, #0f172a)",
+      color: "var(--text-color, #f8fafc)",
       fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       padding: "2.5rem 1rem",
       display: "flex",
@@ -503,7 +555,7 @@ function FormGuideContent() {
           transition: all 0.2s ease-in-out;
         }
         .survey-input:focus {
-          border-color: #3b82f6 !important;
+          border-color: var(--primary-color, #3b82f6) !important;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
           outline: none;
         }
@@ -517,39 +569,63 @@ function FormGuideContent() {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "1.5rem",
-          background: "rgba(30, 41, 59, 0.45)",
+          background: "var(--card-bg, rgba(30, 41, 59, 0.45))",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(255, 255, 255, 0.06)",
+          border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
           borderRadius: "16px",
           padding: "16px 20px",
-          boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)"
+          boxShadow: "0 10px 30px -10px rgba(0,0,0,0.3)"
         }}>
           <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em", color: "#ffffff" }}>{t.title}</h1>
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em", color: "var(--text-color, #ffffff)" }}>{t.title}</h1>
             <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 500 }}>{t.subtitle}</span>
           </div>
 
-          <div style={{ display: "flex", gap: "6px", background: "rgba(15, 23, 42, 0.4)", padding: "4px", borderRadius: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "4px", background: "rgba(15, 23, 42, 0.4)", padding: "4px", borderRadius: "10px" }}>
+              <button 
+                onClick={() => setLang("es")} 
+                style={{
+                  background: lang === "es" ? "var(--primary-color, #FF7900)" : "transparent",
+                  color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                ESP
+              </button>
+              <button 
+                onClick={() => setLang("uk")} 
+                style={{
+                  background: lang === "uk" ? "var(--primary-color, #FF7900)" : "transparent",
+                  color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                UKR
+              </button>
+            </div>
+
+            {/* X Close Button */}
             <button 
-              onClick={() => setLang("es")} 
+              onClick={handleClose}
               style={{
-                background: lang === "es" ? "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" : "transparent",
-                color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid var(--border-color, rgba(255, 255, 255, 0.1))",
+                borderRadius: "50%",
+                width: "36px",
+                height: "36px",
+                color: "var(--text-color, #94a3b8)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.85rem",
+                fontWeight: 700,
                 transition: "all 0.2s"
               }}
             >
-              ESP
-            </button>
-            <button 
-              onClick={() => setLang("uk")} 
-              style={{
-                background: lang === "uk" ? "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" : "transparent",
-                color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
-                transition: "all 0.2s"
-              }}
-            >
-              UKR
+              ✕
             </button>
           </div>
         </header>
@@ -557,11 +633,11 @@ function FormGuideContent() {
         {/* Progress Bar */}
         <div style={{ marginBottom: "2rem", padding: "0 4px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
-            <span style={{ color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.stepLabel}</span>
+            <span style={{ color: "var(--primary-color, #3b82f6)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.stepLabel}</span>
             <span>{Math.round((currentStep / 6) * 100)}%</span>
           </div>
           <div style={{ height: "6px", background: "rgba(255,255,255,0.05)", borderRadius: "100px", overflow: "hidden" }}>
-            <div style={{ height: "100%", background: "linear-gradient(90deg, #6c63ff 0%, #3b82f6 100%)", width: `${(currentStep / 6) * 100}%`, borderRadius: "100px", transition: "width 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }} />
+            <div style={{ height: "100%", background: "var(--primary-color, #f97316)", width: `${(currentStep / 6) * 100}%`, borderRadius: "100px", transition: "width 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }} />
           </div>
         </div>
 
@@ -569,46 +645,49 @@ function FormGuideContent() {
         <main style={{ minHeight: "330px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           
           <div className="animate-step" style={{ 
-            background: "rgba(30, 41, 59, 0.45)", 
+            background: "var(--card-bg, rgba(30, 41, 59, 0.45))", 
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)", 
+            border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", 
             borderRadius: "24px", 
             padding: "2rem", 
-            boxShadow: "0 20px 40px -15px rgba(0,0,0,0.6)", 
+            boxShadow: "0 20px 40px -15px rgba(0,0,0,0.3)", 
             marginBottom: "1.5rem" 
           }}>
             
             {/* STEP 1: UBICACIÓN */}
             {currentStep === 1 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q1Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q1Title}</h2>
                 <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0" }}>{t.q1Label}</p>
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {config.ubicacion?.options?.map((opt: any, i: number) => {
-                    const isSelected = ubicacionOption === opt.es;
+                    // Match either strict option name or normalized name
+                    const normalizedOpt = opt.es === "Interior > en techo falso" ? "Interior - En techo falso" : 
+                                          opt.es === "Registro" ? "En Registro" : opt.es;
+                    const isSelected = ubicacionOption === normalizedOpt;
                     return (
                       <button
                         key={i}
                         type="button"
                         onClick={() => {
-                          setUbicacionOption(opt.es);
-                          if (!ubiRequiresInput(opt.es)) {
+                          setUbicacionOption(normalizedOpt);
+                          if (!ubiRequiresInput(normalizedOpt)) {
                             setUbicacionOtros("");
                             setCurrentStep(2);
                           }
                         }}
                         style={{
                           textAlign: "left", padding: "14px 18px", borderRadius: "14px", 
-                          border: isSelected ? "2px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
-                          background: isSelected ? "rgba(59, 130, 246, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                          color: isSelected ? "#60a5fa" : "#f1f5f9", 
+                          border: isSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                          background: isSelected ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                          color: isSelected ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)", 
                           cursor: "pointer", fontWeight: 600, fontSize: "0.88rem"
                         }}
                         className={!isSelected ? "survey-btn-option" : ""}
                       >
-                        {lang === "es" ? opt.es : opt.uk}
+                        {lang === "es" ? normalizedOpt : opt.uk}
                       </button>
                     );
                   })}
@@ -623,7 +702,7 @@ function FormGuideContent() {
                       onChange={e => setUbicacionOtros(e.target.value)}
                       placeholder="Ej: Planta 3, puerta A..."
                       className="survey-input"
-                      style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.9rem" }}
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
                     />
                   </div>
                 )}
@@ -633,7 +712,7 @@ function FormGuideContent() {
             {/* STEP 2: DAÑOS */}
             {currentStep === 2 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q2Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q2Title}</h2>
                 
                 <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
                   <button 
@@ -641,9 +720,9 @@ function FormGuideContent() {
                     onClick={() => setTieneDanos(true)}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: tieneDanos === true ? "2px solid #ef4444" : "1px solid rgba(255, 255, 255, 0.08)",
+                      border: tieneDanos === true ? "2px solid #ef4444" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
                       background: tieneDanos === true ? "rgba(239, 68, 68, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: tieneDanos === true ? "#f87171" : "#f1f5f9", 
+                      color: tieneDanos === true ? "#f87171" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={tieneDanos !== true ? "survey-btn-option" : ""}
@@ -661,9 +740,9 @@ function FormGuideContent() {
                     }}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: tieneDanos === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      border: tieneDanos === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
                       background: tieneDanos === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: tieneDanos === false ? "#34d399" : "#f1f5f9", 
+                      color: tieneDanos === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={tieneDanos !== false ? "survey-btn-option" : ""}
@@ -673,7 +752,7 @@ function FormGuideContent() {
                 </div>
 
                 {tieneDanos === true && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.06)", animation: "slideIn 0.25s ease-out" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
                     <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{t.danosLabel}</span>
                     
                     {(Object.keys(danosChecked) as DamageKey[]).map((key) => (
@@ -684,7 +763,7 @@ function FormGuideContent() {
                           onChange={e => setDanosChecked({ ...danosChecked, [key]: e.target.checked })}
                           style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
                         />
-                        <span style={{ color: "#e2e8f0" }}>{t.danosOptions[key]}</span>
+                        <span style={{ color: "var(--text-color, #e2e8f0)" }}>{t.danosOptions[key]}</span>
                       </label>
                     ))}
                   </div>
@@ -695,7 +774,7 @@ function FormGuideContent() {
             {/* STEP 3: LLAVES */}
             {currentStep === 3 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q3Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q3Title}</h2>
                 
                 <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
                   <button 
@@ -703,9 +782,9 @@ function FormGuideContent() {
                     onClick={() => setRequiereLlaves(true)}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: requiereLlaves === true ? "2px solid #f59e0b" : "1px solid rgba(255, 255, 255, 0.08)",
+                      border: requiereLlaves === true ? "2px solid #f59e0b" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
                       background: requiereLlaves === true ? "rgba(245, 158, 11, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereLlaves === true ? "#fbbf24" : "#f1f5f9", 
+                      color: requiereLlaves === true ? "#fbbf24" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereLlaves !== true ? "survey-btn-option" : ""}
@@ -723,9 +802,9 @@ function FormGuideContent() {
                     }}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: requiereLlaves === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      border: requiereLlaves === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
                       background: requiereLlaves === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereLlaves === false ? "#34d399" : "#f1f5f9", 
+                      color: requiereLlaves === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereLlaves !== false ? "survey-btn-option" : ""}
@@ -735,7 +814,7 @@ function FormGuideContent() {
                 </div>
 
                 {requiereLlaves === true && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", background: "rgba(15, 23, 42, 0.3)", padding: "18px", borderRadius: "16px", border: "1px solid rgba(255, 255, 255, 0.06)", animation: "slideIn 0.25s ease-out" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", background: "rgba(15, 23, 42, 0.3)", padding: "18px", borderRadius: "16px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.llavesName}</label>
                       <input 
@@ -748,7 +827,7 @@ function FormGuideContent() {
                         placeholder="Ej: Conserje Pedro"
                         disabled={llavesNoDatos}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.88rem" }}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
                       />
                     </div>
 
@@ -764,11 +843,11 @@ function FormGuideContent() {
                         placeholder="Ej: 666777888"
                         disabled={llavesNoDatos}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.88rem" }}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
                       />
                     </div>
 
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.82rem", color: "#64748b", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "12px", marginTop: "4px", fontWeight: 600 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.82rem", color: "#64748b", borderTop: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", paddingTop: "12px", marginTop: "4px", fontWeight: 600 }}>
                       <input 
                         type="checkbox"
                         checked={llavesNoDatos}
@@ -791,7 +870,7 @@ function FormGuideContent() {
             {/* STEP 4: SPLITTERS */}
             {currentStep === 4 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q4Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q4Title}</h2>
                 <p style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "20px" }}>{t.q4Help}</p>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
@@ -801,14 +880,14 @@ function FormGuideContent() {
                       <div style={{ position: "relative", flex: 1 }}>
                         <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: 700 }}>-</span>
                         <input 
-                          type="number"
-                          step="any"
-                          min="0"
+                          type="text"
+                          inputMode="decimal"
+                          pattern="[0-9]*\.?[0-9]*"
                           value={s.signal}
                           onChange={e => updateSplitterSignal(idx, e.target.value)}
                           placeholder="22.15"
                           className="survey-input"
-                          style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.9rem" }}
+                          style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
                         />
                       </div>
                       <button 
@@ -847,7 +926,7 @@ function FormGuideContent() {
             {/* STEP 5: ANTALA */}
             {currentStep === 5 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q5Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q5Title}</h2>
                 
                 <div style={{ display: "flex", gap: "12px" }}>
                   <button 
@@ -858,9 +937,9 @@ function FormGuideContent() {
                     }}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: requiereAntala === true ? "2px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
-                      background: requiereAntala === true ? "rgba(59, 130, 246, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereAntala === true ? "#60a5fa" : "#f1f5f9", 
+                      border: requiereAntala === true ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                      background: requiereAntala === true ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: requiereAntala === true ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereAntala !== true ? "survey-btn-option" : ""}
@@ -875,9 +954,9 @@ function FormGuideContent() {
                     }}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: requiereAntala === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      border: requiereAntala === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
                       background: requiereAntala === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereAntala === false ? "#34d399" : "#f1f5f9", 
+                      color: requiereAntala === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereAntala !== false ? "survey-btn-option" : ""}
@@ -891,7 +970,7 @@ function FormGuideContent() {
             {/* STEP 6: ÁREA DE INFLUENCIA */}
             {currentStep === 6 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   
@@ -901,9 +980,9 @@ function FormGuideContent() {
                       type="checkbox"
                       checked={influenciaPorterillo}
                       onChange={e => setInfluenciaPorterillo(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
                     />
-                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.porterillo}</span>
+                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.porterillo}</span>
                   </label>
 
                   {/* Calle */}
@@ -912,13 +991,13 @@ function FormGuideContent() {
                       type="checkbox"
                       checked={influenciaCalle}
                       onChange={e => setInfluenciaCalle(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
                     />
-                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.calle}</span>
+                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.calle}</span>
                   </label>
 
                   {influenciaCalle && (
-                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid rgba(255, 255, 255, 0.06)", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
+                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
                       
                       <div style={{ display: "flex", gap: "10px" }}>
                         <div style={{ width: "120px" }}>
@@ -926,7 +1005,7 @@ function FormGuideContent() {
                           <select
                             value={calleTipo}
                             onChange={e => setCalleTipo(e.target.value)}
-                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.85rem", outline: "none" }}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem", outline: "none" }}
                           >
                             <option value="Calle">Calle</option>
                             <option value="Avenida">Avenida</option>
@@ -944,7 +1023,7 @@ function FormGuideContent() {
                             onChange={e => setCalleNombre(e.target.value)}
                             placeholder="Ej: de Andalucía"
                             className="survey-input"
-                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.85rem" }}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
                           />
                         </div>
                       </div>
@@ -960,7 +1039,7 @@ function FormGuideContent() {
                                 onChange={e => updateCalleNumero(idx, e.target.value)}
                                 placeholder="14"
                                 className="survey-input"
-                                style={{ width: "55px", padding: "6px 8px", borderRadius: "6px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", textAlign: "center", fontSize: "0.82rem" }}
+                                style={{ width: "55px", padding: "6px 8px", borderRadius: "6px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", textAlign: "center", fontSize: "0.82rem" }}
                               />
                               <button 
                                 type="button"
@@ -994,9 +1073,9 @@ function FormGuideContent() {
                       type="checkbox"
                       checked={influenciaOtros}
                       onChange={e => setInfluenciaOtros(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
                     />
-                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.otros}</span>
+                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.otros}</span>
                   </label>
 
                   {influenciaOtros && (
@@ -1008,7 +1087,7 @@ function FormGuideContent() {
                         placeholder="Especifica otros detalles..."
                         rows={2}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", resize: "vertical", fontSize: "0.85rem" }}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", resize: "vertical", fontSize: "0.85rem" }}
                       />
                     </div>
                   )}
@@ -1028,8 +1107,8 @@ function FormGuideContent() {
                 type="button"
                 onClick={prevStep}
                 style={{
-                  flex: 1, padding: "12px 18px", borderRadius: "12px", background: "rgba(255, 255, 255, 0.06)", color: "#e2e8f0",
-                  border: "1px solid rgba(255, 255, 255, 0.08)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem", transition: "all 0.2s"
+                  flex: 1, padding: "12px 18px", borderRadius: "12px", background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, #e2e8f0)",
+                  border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem", transition: "all 0.2s"
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
                 onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"}
@@ -1069,7 +1148,7 @@ function FormGuideContent() {
                 className="btn btn-primary"
                 style={{
                   flex: 1.5, justifyContent: "center", fontWeight: 800, fontSize: "0.88rem", minHeight: "44px", borderRadius: "12px",
-                  boxShadow: "0 0 20px rgba(59, 130, 246, 0.35)", background: "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)"
+                  boxShadow: "0 0 20px rgba(255, 121, 0, 0.25)", background: "var(--primary-color, #FF7900)"
                 }}
               >
                 {t.submitBtn}
@@ -1084,7 +1163,7 @@ function FormGuideContent() {
       {/* RESULT MODAL (COPY COMMENT) */}
       {showResultModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(5, 8, 16, 0.9)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-          <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "rgba(30, 41, 59, 0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "24px", color: "white", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)" }}>
+          <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "var(--card-bg, rgba(30, 41, 59, 0.5))", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "24px", color: "var(--text-color, white)", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}>
             
             <h3 style={{ margin: "0 0 10px 0", fontSize: "1.25rem", fontWeight: 800, color: "#34d399", letterSpacing: "-0.02em" }}>
               {saving ? "Guardando formulario..." : "¡Comentario Generado y Guardado!"}
@@ -1098,8 +1177,8 @@ function FormGuideContent() {
               value={generatedComment}
               rows={8}
               style={{
-                width: "100%", padding: "12px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "12px",
-                color: "#e2e8f0", fontFamily: "monospace", fontSize: "0.82rem", resize: "none", marginBottom: "20px", outline: "none"
+                width: "100%", padding: "12px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "12px",
+                color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.82rem", resize: "none", marginBottom: "20px", outline: "none"
               }}
             />
 
@@ -1107,7 +1186,7 @@ function FormGuideContent() {
               <button
                 onClick={copyToClipboard}
                 className="btn btn-primary"
-                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700, borderRadius: "12px", background: "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" }}
+                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700, borderRadius: "12px", background: "var(--primary-color, #FF7900)" }}
               >
                 Copiar Comentario
               </button>
@@ -1117,7 +1196,7 @@ function FormGuideContent() {
                   window.close();
                 }}
                 className="btn"
-                style={{ flex: 1, background: "rgba(255, 255, 255, 0.06)", color: "white", border: "1px solid rgba(255, 255, 255, 0.08)", justifyContent: "center", fontWeight: 700, borderRadius: "12px" }}
+                style={{ flex: 1, background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px" }}
               >
                 Cerrar pestaña
               </button>

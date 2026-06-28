@@ -13,10 +13,10 @@ const DEFAULT_CONFIG = {
     label_es: "Dónde se encuentra la CTO",
     label_uk: "Де знаходиться CTO",
     options: [
-      { es: "Interior > en techo falso", uk: "Внутрішній > у підвісній стелі" },
+      { es: "Interior - En techo falso", uk: "Внутрішній - у підвісній стелі" },
       { es: "Interior > en la pared", uk: "Внутрішній > на стіні" },
       { es: "Poste", uk: "Стовп" },
-      { es: "Registro", uk: "Реєстр/Коробка" },
+      { es: "En Registro", uk: "В коробці/реєстрі" },
       { es: "Indicar el número de la planta > de metal, grande", uk: "Вказати номер поверху > металевий, великий" },
       { es: "Indicar el número de la planta > de madera", uk: "Вказати номер поверху > дерев'яний" },
       { es: "Indicar el número de la planta > en vertical", uk: "Вказати номер поверху > вертикальний" },
