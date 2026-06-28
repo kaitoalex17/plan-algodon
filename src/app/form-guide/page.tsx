@@ -320,10 +320,12 @@ function FormGuideContent() {
       }
     });
 
-    if (antalaErrors.length > 0) {
-      lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
-    } else if (requiereAntala === true) {
-      lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
+    if (requiereAntala === true) {
+      if (antalaErrors.length > 0) {
+        lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
+      } else {
+        lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
+      }
     }
 
     // Space and Splitters (only the numbers!)
@@ -541,30 +543,12 @@ function FormGuideContent() {
 
   // Navigate forward
   const nextStep = () => {
-    if (currentStep === 4) {
-      const hasAntalaErrors = checkHasAntalaErrors();
-      if (hasAntalaErrors) {
-        setCurrentStep(6);
-      } else {
-        setCurrentStep(5);
-      }
-    } else if (currentStep < 6) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (currentStep < 6) setCurrentStep(currentStep + 1);
   };
 
   // Navigate backward
   const prevStep = () => {
-    if (currentStep === 6) {
-      const hasAntalaErrors = checkHasAntalaErrors();
-      if (hasAntalaErrors) {
-        setCurrentStep(4);
-      } else {
-        setCurrentStep(5);
-      }
-    } else if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
   // Skip question
@@ -588,14 +572,7 @@ function FormGuideContent() {
       setRequiereAntala(null);
     }
 
-    if (currentStep === 4) {
-      const hasAntalaErrors = checkHasAntalaErrors();
-      if (hasAntalaErrors) {
-        setCurrentStep(6);
-      } else {
-        setCurrentStep(5);
-      }
-    } else if (currentStep < 6) {
+    if (currentStep < 6) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -762,8 +739,8 @@ function FormGuideContent() {
                         style={{
                           textAlign: "left", padding: "14px 18px", borderRadius: "14px", 
                           border: isSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                          background: isSelected ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                          color: isSelected ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)", 
+                          background: isSelected ? "var(--primary-color, #f97316)" : "var(--card-bg, #1e293b)", 
+                          color: isSelected ? "#ffffff" : "var(--text-color, #f8fafc)", 
                           cursor: "pointer", fontWeight: 600, fontSize: "0.88rem"
                         }}
                         className={!isSelected ? "survey-btn-option" : ""}
@@ -775,7 +752,7 @@ function FormGuideContent() {
                 </div>
 
                 {ubicacionOption && ubiRequiresInput(ubicacionOption) && (
-                  <div style={{ marginTop: "20px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ marginTop: "20px", background: "rgba(15, 23, 42, 0.08)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out", display: "flex", flexDirection: "column", gap: "12px" }}>
                     
                     <div>
                       <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
@@ -797,8 +774,8 @@ function FormGuideContent() {
                               style={{
                                 padding: "10px", borderRadius: "10px", 
                                 border: isSubSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                                background: isSubSelected ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)",
-                                color: isSubSelected ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)",
+                                background: isSubSelected ? "var(--primary-color, #f97316)" : "var(--card-bg, #1e293b)",
+                                color: isSubSelected ? "#ffffff" : "var(--text-color, #f8fafc)",
                                 cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
                               }}
                             >
@@ -819,7 +796,7 @@ function FormGuideContent() {
                         onChange={e => setUbicacionPlantaNumero(e.target.value)}
                         placeholder="Ej: 3, Bajo, Atico..."
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "white", fontSize: "0.88rem" }}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
                       />
                     </div>
 
@@ -832,7 +809,7 @@ function FormGuideContent() {
                           onChange={e => setUbicacionOtros(e.target.value)}
                           placeholder="Especifica la ubicación..."
                           className="survey-input"
-                          style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
+                          style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
                         />
                       </div>
                     )}
@@ -854,8 +831,8 @@ function FormGuideContent() {
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
                       border: tieneDanos === true ? "2px solid #ef4444" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: tieneDanos === true ? "rgba(239, 68, 68, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: tieneDanos === true ? "#f87171" : "var(--text-color, #f1f5f9)", 
+                      background: tieneDanos === true ? "#ef4444" : "var(--card-bg, #1e293b)", 
+                      color: tieneDanos === true ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={tieneDanos !== true ? "survey-btn-option" : ""}
@@ -874,8 +851,8 @@ function FormGuideContent() {
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
                       border: tieneDanos === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: tieneDanos === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: tieneDanos === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
+                      background: tieneDanos === false ? "#10b981" : "var(--card-bg, #1e293b)", 
+                      color: tieneDanos === false ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={tieneDanos !== false ? "survey-btn-option" : ""}
@@ -885,7 +862,7 @@ function FormGuideContent() {
                 </div>
 
                 {tieneDanos === true && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--card-bg, #1e293b)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
                     <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{t.danosLabel}</span>
                     
                     {(Object.keys(danosChecked) as DamageKey[]).map((key) => (
@@ -915,9 +892,9 @@ function FormGuideContent() {
                     onClick={() => setRequiereLlaves(true)}
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
-                      border: requiereLlaves === true ? "2px solid #f59e0b" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: requiereLlaves === true ? "rgba(245, 158, 11, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereLlaves === true ? "#fbbf24" : "var(--text-color, #f1f5f9)", 
+                      border: requiereLlaves === true ? "2px solid var(--primary-color, #f59e0b)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                      background: requiereLlaves === true ? "var(--primary-color, #f59e0b)" : "var(--card-bg, #1e293b)", 
+                      color: requiereLlaves === true ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereLlaves !== true ? "survey-btn-option" : ""}
@@ -936,8 +913,8 @@ function FormGuideContent() {
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
                       border: requiereLlaves === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: requiereLlaves === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereLlaves === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
+                      background: requiereLlaves === false ? "#10b981" : "var(--card-bg, #1e293b)", 
+                      color: requiereLlaves === false ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereLlaves !== false ? "survey-btn-option" : ""}
@@ -947,7 +924,7 @@ function FormGuideContent() {
                 </div>
 
                 {requiereLlaves === true && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", background: "rgba(15, 23, 42, 0.3)", padding: "18px", borderRadius: "16px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", background: "var(--card-bg, #1e293b)", padding: "18px", borderRadius: "16px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.llavesName}</label>
                       <input 
@@ -960,7 +937,7 @@ function FormGuideContent() {
                         placeholder="Ej: Conserje Pedro"
                         disabled={llavesNoDatos}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
                       />
                     </div>
 
@@ -976,7 +953,7 @@ function FormGuideContent() {
                         placeholder="Ej: 666777888"
                         disabled={llavesNoDatos}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
                       />
                     </div>
 
@@ -1020,7 +997,7 @@ function FormGuideContent() {
                           onChange={e => updateSplitterSignal(idx, e.target.value)}
                           placeholder="22.15"
                           className="survey-input"
-                          style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
+                          style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
                         />
                       </div>
                       <button 
@@ -1045,11 +1022,9 @@ function FormGuideContent() {
                   type="button"
                   onClick={addSplitter}
                   style={{
-                    width: "100%", padding: "10px", borderRadius: "10px", border: "1px dashed rgba(59, 130, 246, 0.4)", background: "rgba(59, 130, 246, 0.06)",
-                    color: "#60a5fa", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", transition: "all 0.2s"
+                    width: "100%", padding: "10px", borderRadius: "10px", border: "1px dashed var(--primary-color, rgba(59, 130, 246, 0.4))", background: "none",
+                    color: "var(--primary-color, #60a5fa)", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", transition: "all 0.2s"
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "rgba(59, 130, 246, 0.06)"}
                 >
                   ➕ {t.addSplitterBtn}
                 </button>
@@ -1071,8 +1046,8 @@ function FormGuideContent() {
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
                       border: requiereAntala === true ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: requiereAntala === true ? "rgba(255, 121, 0, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereAntala === true ? "var(--primary-color, #60a5fa)" : "var(--text-color, #f1f5f9)", 
+                      background: requiereAntala === true ? "var(--primary-color, #3b82f6)" : "var(--card-bg, #1e293b)", 
+                      color: requiereAntala === true ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereAntala !== true ? "survey-btn-option" : ""}
@@ -1088,8 +1063,8 @@ function FormGuideContent() {
                     style={{
                       flex: 1, padding: "14px", borderRadius: "14px", 
                       border: requiereAntala === false ? "2px solid #10b981" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                      background: requiereAntala === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
-                      color: requiereAntala === false ? "#34d399" : "var(--text-color, #f1f5f9)", 
+                      background: requiereAntala === false ? "#10b981" : "var(--card-bg, #1e293b)", 
+                      color: requiereAntala === false ? "#ffffff" : "var(--text-color, #f1f5f9)", 
                       fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
                     }}
                     className={requiereAntala !== false ? "survey-btn-option" : ""}
@@ -1128,7 +1103,7 @@ function FormGuideContent() {
                   </label>
 
                   {influenciaCalle && (
-                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
+                    <div style={{ background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
                       {callesList.map((calle, idx) => (
                         <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                           <input 
@@ -1137,7 +1112,7 @@ function FormGuideContent() {
                             onChange={e => updateCalle(idx, e.target.value)}
                             placeholder={lang === "es" ? "Ej: Calle de Andalucía 14" : "Наприклад: Андалузька вулиця 14"}
                             className="survey-input"
-                            style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
+                            style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
                           />
                           <button 
                             type="button"
@@ -1154,7 +1129,7 @@ function FormGuideContent() {
                         type="button" 
                         onClick={addCalle}
                         style={{
-                          alignSelf: "flex-start", padding: "6px 12px", background: "none", border: "1px dashed rgba(59, 130, 246, 0.4)", color: "#60a5fa",
+                          alignSelf: "flex-start", padding: "6px 12px", background: "none", border: "1px dashed var(--primary-color, rgba(59, 130, 246, 0.4))", color: "var(--primary-color, #60a5fa)",
                           borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px"
                         }}
                       >
@@ -1183,7 +1158,7 @@ function FormGuideContent() {
                         placeholder="Especifica otros detalles..."
                         rows={2}
                         className="survey-input"
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", resize: "vertical", fontSize: "0.85rem" }}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", resize: "vertical", fontSize: "0.85rem" }}
                       />
                     </div>
                   )}
