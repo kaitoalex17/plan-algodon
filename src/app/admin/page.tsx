@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
   const [deletingCtos, setDeletingCtos] = useState(false);
+  const [migratingAuditors, setMigratingAuditors] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -122,6 +123,27 @@ export default function AdminPage() {
     }
   };
 
+  const handleMigrateAuditors = async () => {
+    if (!confirm("¿Deseas ejecutar la migración única de datos de auditores? Esto copiará el técnico asignado al campo 'Auditado por' para todas las CTOs marcadas como CORRECTO.")) {
+      return;
+    }
+    setMigratingAuditors(true);
+    try {
+      const res = await fetch("/api/admin/migrate-auditors", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || `Migración completada. Registros afectados: ${data.count}`);
+      } else {
+        alert("Error al realizar la migración.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor al realizar la migración.");
+    } finally {
+      setMigratingAuditors(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>
@@ -208,6 +230,22 @@ export default function AdminPage() {
               </svg>
               Evidencias Fotográficas (Organizador)
             </Link>
+            <Link href="/admin/lottery" className="btn" style={{ background: 'var(--primary-color)', color: 'white', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 600 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              Sorteo y Reparto de CTOs
+            </Link>
+            <Link href="/admin/daily-summary" className="btn" style={{ background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)', justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22 6 12 13 2 6" />
+              </svg>
+              Resumen Diario y Ajustes de Correo
+            </Link>
             
             <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.75rem 0' }} />
             
@@ -221,6 +259,27 @@ export default function AdminPage() {
               </svg>
               Exportar Datos (Excel)
             </a>
+            <a href="/api/admin/backup" className="btn" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Copia de Seguridad Completa (Excel)
+            </a>
+            <button 
+              onClick={handleMigrateAuditors}
+              className="btn" 
+              disabled={migratingAuditors}
+              style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 600 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M17 11l2 2 4-4" />
+              </svg>
+              {migratingAuditors ? "Migrando..." : "Migrar Datos (Asignar Auditores)"}
+            </button>
             <a href="/api/admin/export-images" download className="btn" style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />

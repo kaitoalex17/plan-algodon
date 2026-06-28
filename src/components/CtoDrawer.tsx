@@ -40,6 +40,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // States for checklist, programada and checklist modal
+  const [hasFormulario, setHasFormulario] = useState(false);
+  const [hasDrive, setHasDrive] = useState(false);
+  const [hasAntala, setHasAntala] = useState(false);
+  const [isProgramada, setIsProgramada] = useState(false);
+  const [showChecklistModal, setShowChecklistModal] = useState(false);
+  const [checkFormulario, setCheckFormulario] = useState(false);
+  const [checkDrive, setCheckDrive] = useState(false);
+  const [checkAntala, setCheckAntala] = useState(false);
+
   // States for toggles, progress and gallery
   const [showFiberDetails, setShowFiberDetails] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -71,6 +81,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
         setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
         setEtiquetadoCorrecto(data.etiquetadoCorrecto !== null ? data.etiquetadoCorrecto : true);
+        setHasFormulario(data.hasFormulario || false);
+        setHasDrive(data.hasDrive || false);
+        setHasAntala(data.hasAntala || false);
+        setIsProgramada(data.category === "PROGRAMADA");
       }
     } catch (e) {
       console.error(e);
@@ -108,7 +122,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
   if (!cto) return null;
 
-  const saveCto = async (targetStatus: string, targetAssignedToId: string | null) => {
+  const saveCto = async (targetStatus: string, targetAssignedToId: string | null, extraData: any = {}) => {
     setSaving(true);
     try {
       const res = await fetch(`/api/ctos/${cto.id}`, {
@@ -127,6 +141,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           etiquetadoCorrecto: true,
           zona: zona || null,
           cluster: cluster || null,
+          category: isProgramada ? "PROGRAMADA" : "AUDITORIA",
+          hasFormulario,
+          hasDrive,
+          hasAntala,
+          ...extraData
         }),
       });
 
@@ -153,6 +172,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           etiquetadoCorrecto: true,
           zona: zona || null,
           cluster: cluster || null,
+          category: isProgramada ? "PROGRAMADA" : "AUDITORIA",
+          hasFormulario: extraData.hasFormulario !== undefined ? extraData.hasFormulario : hasFormulario,
+          hasDrive: extraData.hasDrive !== undefined ? extraData.hasDrive : hasDrive,
+          hasAntala: extraData.hasAntala !== undefined ? extraData.hasAntala : hasAntala,
         };
 
         onUpdate(fullUpdatedCto);
@@ -174,16 +197,37 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     await saveCto(status, assignedToId);
   };
 
-  const handleCerrarYGuardar = async () => {
-    // 1. Cambiar a CORRECTO
-    setStatus("CORRECTO");
-    // 2. Autoasignar al usuario actual
+  const handleCerrarYGuardar = () => {
+    setCheckFormulario(hasFormulario);
+    setCheckDrive(hasDrive);
+    setCheckAntala(hasAntala);
+    setShowChecklistModal(true);
+  };
+
+  const handleConfirmChecklist = async () => {
     const currentUserId = (session?.user as any)?.id;
+    const activeSubStatus = subStatuses.find(s => s.id === subStatusId);
+    const isEnConstruccion = activeSubStatus?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || activeSubStatus?.name?.trim().toUpperCase() === "EN CONSTRUCCION";
+
+    const updatePayload = {
+      status: "CORRECTO",
+      assignedToId: currentUserId || assignedToId || null,
+      auditedById: currentUserId || null,
+      hasFormulario: checkFormulario,
+      hasDrive: checkDrive,
+      hasAntala: isEnConstruccion ? checkAntala : false
+    };
+
+    setHasFormulario(checkFormulario);
+    setHasDrive(checkDrive);
+    setHasAntala(isEnConstruccion ? checkAntala : false);
+    setStatus("CORRECTO");
     if (currentUserId) {
       setAssignedToId(currentUserId);
     }
-    // 3. Guardar inmediatamente
-    await saveCto("CORRECTO", currentUserId || assignedToId);
+
+    setShowChecklistModal(false);
+    await saveCto("CORRECTO", currentUserId || assignedToId, updatePayload);
   };
 
   // Upload pictures with real percentage progress
@@ -287,7 +331,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     sub => (sub as any).category === cto.category
   );
 
-  const isProgramada = cto.category === "PROGRAMADA";
   const displayStatus = status === "REVISADO" ? "REVISADO" : status;
 
   return (
@@ -635,6 +678,20 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   placeholder="Escribe comentarios de la visita..." 
                   style={{ minHeight: "50px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 />
+              </div>
+
+              {/* Checkbox Programada */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <input 
+                  type="checkbox" 
+                  id="isProgramadaCheckbox"
+                  checked={isProgramada} 
+                  onChange={e => setIsProgramada(e.target.checked)} 
+                  style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)", cursor: "pointer" }}
+                />
+                <label htmlFor="isProgramadaCheckbox" style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)", cursor: "pointer" }}>
+                  📌 Programada (Trabajo planeado / pre-trabajo)
+                </label>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1044,6 +1101,110 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </svg>
               <span style={{ fontSize: "0.75rem" }}>Eliminar</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CHECKLIST DE AUDITORÍA (CERRAR Y GUARDAR) */}
+      {showChecklistModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.6)",
+          backdropFilter: "blur(4px)",
+          zIndex: 4000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "16px"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "380px",
+            background: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "16px",
+            padding: "24px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+          }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              Requisitos de Auditoría
+            </h2>
+            <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "1.25rem" }}>
+              Marca los siguientes requisitos obligatorios para poder certificar la CTO como <strong>CORRECTO</strong>:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "1.5rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "var(--bg-color)", border: "1px solid var(--border-color)", cursor: "pointer" }}>
+                <input 
+                  type="checkbox" 
+                  checked={checkFormulario} 
+                  onChange={e => setCheckFormulario(e.target.checked)} 
+                  style={{ width: "18px", height: "18px", accentColor: "#10b981", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>1. Formulario completo</span>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "var(--bg-color)", border: "1px solid var(--border-color)", cursor: "pointer" }}>
+                <input 
+                  type="checkbox" 
+                  checked={checkDrive} 
+                  onChange={e => setCheckDrive(e.target.checked)} 
+                  style={{ width: "18px", height: "18px", accentColor: "#10b981", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>2. Fotos subidas a Drive</span>
+              </label>
+
+              {(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
+                subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") && (
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid #f59e0b", cursor: "pointer" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={checkAntala} 
+                    onChange={e => setCheckAntala(e.target.checked)} 
+                    style={{ width: "18px", height: "18px", accentColor: "#f59e0b", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#d97706" }}>3. Registro en Antala</span>
+                </label>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button 
+                type="button" 
+                onClick={() => setShowChecklistModal(false)} 
+                className="btn" 
+                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)" }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={handleConfirmChecklist} 
+                className="btn" 
+                disabled={!(checkFormulario && checkDrive && (
+                  !(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
+                    subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") || 
+                  checkAntala
+                ))}
+                style={{ 
+                  flex: 1.5, 
+                  background: (checkFormulario && checkDrive && (
+                    !(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
+                      subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") || 
+                    checkAntala
+                  )) ? "#10b981" : "var(--border-color)", 
+                  color: "white", 
+                  fontWeight: 700 
+                }}
+              >
+                Confirmar y Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

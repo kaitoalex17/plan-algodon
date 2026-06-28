@@ -72,10 +72,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const { 
-      status, subStatusId, assignedToId, notas, commentText,
+      status, subStatusId, assignedToId, auditedById, notas, commentText,
       num, numeroNuevo, lat, lng, municipio, colocacion,
       puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto,
-      zona, cluster
+      zona, cluster, category,
+      hasFormulario, hasDrive, hasAntala
     } = body;
     const userId = (session.user as any).id;
 
@@ -95,6 +96,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (status && status !== oldCto.status) {
       updateData.status = status;
       historyActions.push(`Cambió estado de ${oldCto.status} a ${status}`);
+      if (status === "CORRECTO" && !auditedById && !oldCto.auditedById) {
+        updateData.auditedById = userId;
+      }
+    }
+
+    if (auditedById !== undefined && auditedById !== oldCto.auditedById) {
+      updateData.auditedById = auditedById;
+      if (auditedById) {
+        const u = await prisma.user.findUnique({ where: { id: auditedById } });
+        historyActions.push(`Auditado por: ${u?.name || u?.email || 'N/A'}`);
+      } else {
+        historyActions.push("Quitó el auditor");
+      }
+    }
+
+    if (category !== undefined && category !== oldCto.category) {
+      updateData.category = category;
+      historyActions.push(`Cambió categoría a ${category}`);
+    }
+
+    if (hasFormulario !== undefined && hasFormulario !== oldCto.hasFormulario) {
+      updateData.hasFormulario = hasFormulario;
+      historyActions.push(`Formulario: ${hasFormulario ? 'Sí' : 'No'}`);
+    }
+
+    if (hasDrive !== undefined && hasDrive !== oldCto.hasDrive) {
+      updateData.hasDrive = hasDrive;
+      historyActions.push(`Drive: ${hasDrive ? 'Sí' : 'No'}`);
+    }
+
+    if (hasAntala !== undefined && hasAntala !== oldCto.hasAntala) {
+      updateData.hasAntala = hasAntala;
+      historyActions.push(`Antala: ${hasAntala ? 'Sí' : 'No'}`);
     }
 
     if (subStatusId !== undefined && subStatusId !== oldCto.subStatusId) {

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client"
+import { startEmailScheduler } from "./scheduler"
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
@@ -9,3 +10,6 @@ export const prisma =
   })
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+
+// Iniciar el programador de segundo plano de envío automático
+startEmailScheduler(prisma);

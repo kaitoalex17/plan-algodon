@@ -28,6 +28,7 @@ model User {
   mapLayer        String  @default("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}")
   assignedCTOs  CTO[]     @relation("AssignedTo")
   createdCTOs   CTO[]     @relation("CreatedBy")
+  auditedCTOs   CTO[]     @relation("AuditedBy")
   comments      Comment[]
   history       History[]
   accounts      Account[]
@@ -100,6 +101,11 @@ model CTO {
 
   assignedToId   String?
   assignedTo     User?     @relation("AssignedTo", fields: [assignedToId], references: [id])
+  auditedById    String?
+  auditedBy      User?     @relation("AuditedBy", fields: [auditedById], references: [id])
+  hasFormulario  Boolean   @default(false)
+  hasDrive       Boolean   @default(false)
+  hasAntala      Boolean   @default(false)
 
   comments       Comment[]
   images         Image[]

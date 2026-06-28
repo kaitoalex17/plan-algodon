@@ -54,6 +54,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [showProgramadas, setShowProgramadas] = useState(initialMapState?.showProgramadas !== undefined ? initialMapState.showProgramadas : true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showMyProgramadasModal, setShowMyProgramadasModal] = useState(false);
+  const [showImpactModal, setShowImpactModal] = useState(false);
+  const [filterCategory, setFilterCategory] = useState("AUDITORIA");
 
   useEffect(() => {
     // Eliminar temas anteriores
@@ -118,6 +121,11 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     }
   };
 
+  const handleFilterCategoryChange = (val: string) => {
+    setFilterCategory(val);
+    localStorage.setItem("filter_category", val);
+  };
+
   // Estadísticas
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -167,6 +175,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     const savedZona = localStorage.getItem("filter_zona") || "";
     const savedCluster = localStorage.getItem("filter_cluster") || "";
     const savedSearch = localStorage.getItem("search_query") || "";
+    const savedCategory = localStorage.getItem("filter_category") || "AUDITORIA";
 
     setFilterStatus(savedStatus);
     setFilterSubStatus(savedSubStatus);
@@ -174,6 +183,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     setFilterZona(savedZona);
     setFilterCluster(savedCluster);
     setSearchQuery(savedSearch);
+    setFilterCategory(savedCategory);
 
     // Registrar Service Worker para soporte PWA
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
@@ -331,8 +341,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     if (filterAssigned) count++;
     if (filterZona) count++;
     if (filterCluster) count++;
+    if (filterCategory !== "AUDITORIA") count++;
     return count;
-  }, [filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster]);
+  }, [filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster, filterCategory]);
 
   // Resetear filtros
   const handleClearFilters = () => {
@@ -342,21 +353,25 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     setFilterZona("");
     setFilterCluster("");
     setSearchQuery("");
+    setFilterCategory("AUDITORIA");
     localStorage.removeItem("filter_status");
     localStorage.removeItem("filter_sub_status");
     localStorage.removeItem("filter_assigned");
     localStorage.removeItem("filter_zona");
     localStorage.removeItem("filter_cluster");
     localStorage.removeItem("search_query");
+    localStorage.removeItem("filter_category");
   };
 
   // Filtrar CTOs dinámicamente según búsqueda y filtros avanzados
   const filteredCtos = useMemo(() => {
     let result = ctos;
 
-    // 0. Filtrar por categoría Programada
-    if (!showProgramadas) {
+    // 0. Filtrar por categoría
+    if (filterCategory === "AUDITORIA") {
       result = result.filter(c => c.category !== "PROGRAMADA");
+    } else if (filterCategory === "PROGRAMADA") {
+      result = result.filter(c => c.category === "PROGRAMADA");
     }
 
     // 1. Buscador de texto
@@ -406,7 +421,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     }
 
     return result;
-  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster, showProgramadas]);
+  }, [ctos, searchQuery, filterStatus, filterSubStatus, filterAssigned, filterZona, filterCluster, filterCategory]);
 
   // Limitar el renderizado en lista para rendimiento móvil óptimo (máx 100 elementos a la vez)
   const visibleListCtos = useMemo(() => {
@@ -421,7 +436,11 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         
         {/* Fila 1: Logo y Acciones */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-          <h1 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "4px" }}>
+          <h1 
+            onClick={() => setShowImpactModal(true)}
+            style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", userSelect: "none" }}
+            title="Ver estadísticas del proyecto"
+          >
             <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón
           </h1>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -629,21 +648,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               </div>
             </div>
 
-            {/* Selector de Técnico */}
-            <div>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Asignado a</label>
-              <select 
-                className="input-field" 
-                value={filterAssigned} 
-                onChange={e => handleFilterAssignedChange(e.target.value)}
-                style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-              >
-                <option value="">Todos los técnicos</option>
-                <option value="unassigned">Sin asignar</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.name || u.email}</option>
-                ))}
-              </select>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {/* Selector de Técnico */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Asignado a</label>
+                <select 
+                  className="input-field" 
+                  value={filterAssigned} 
+                  onChange={e => handleFilterAssignedChange(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                >
+                  <option value="">Todos los técnicos</option>
+                  <option value="unassigned">Sin asignar</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Categoría */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-color)", opacity: 0.8, marginBottom: "3px" }}>Categoría</label>
+                <select 
+                  className="input-field" 
+                  value={filterCategory} 
+                  onChange={e => handleFilterCategoryChange(e.target.value)}
+                  style={{ minHeight: "36px", padding: "4px 8px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                >
+                  <option value="AUDITORIA">Auditoría</option>
+                  <option value="PROGRAMADA">Programadas</option>
+                  <option value="TODOS">Todos</option>
+                </select>
+              </div>
             </div>
 
             {/* Limpiar Filtros */}
@@ -1122,13 +1158,32 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               )}
             </div>
 
-            <button 
-              onClick={() => setShowSettingsModal(false)}
-              className="btn btn-primary"
-              style={{ width: "100%" }}
-            >
-              Guardar y Cerrar
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setShowMyProgramadasModal(true);
+                }}
+                className="btn"
+                style={{ width: "100%", padding: "0.75rem", background: "var(--primary-color)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontWeight: 700 }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
+                </svg>
+                Ver mis CTOs Programadas
+              </button>
+
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="btn"
+                style={{ width: "100%", background: "var(--border-color)", color: "var(--text-color)" }}
+              >
+                Guardar y Cerrar
+              </button>
+            </div>
 
             <div style={{ 
               textAlign: "center", 
@@ -1246,6 +1301,237 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         </div>
       )}
 
+      {/* MODAL DE MIS PROGRAMADAS */}
+      {showMyProgramadasModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          backdropFilter: "blur(4px)",
+          zIndex: 2000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem"
+        }}>
+          <div className="glass-panel" style={{
+            width: "95%",
+            maxWidth: "450px",
+            padding: "1.5rem",
+            background: "var(--card-bg)",
+            color: "var(--text-color)",
+            borderColor: "var(--border-color)",
+            maxHeight: "85vh",
+            overflowY: "auto",
+            position: "relative",
+            borderRadius: "16px"
+          }}>
+            <button 
+              type="button"
+              onClick={() => setShowMyProgramadasModal(false)} 
+              title="Cerrar"
+              style={{ 
+                position: "absolute", top: "16px", right: "16px", background: "var(--border-color)", 
+                border: "none", borderRadius: "50%", width: "32px", height: "32px", display: "flex", 
+                alignItems: "center", justifyContent: "center", fontSize: "1.2rem", fontWeight: 700, 
+                color: "var(--text-color)", cursor: "pointer", zIndex: 10 
+              }}
+            >
+              ✕
+            </button>
+
+            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.25rem", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Mis CTOs Programadas
+            </h2>
+
+            {/* Listado */}
+            {(() => {
+              const currentUserId = (session?.user as any)?.id;
+              const myProgramadas = ctos.filter(c => c.assignedToId === currentUserId && c.category === "PROGRAMADA");
+
+              if (myProgramadas.length === 0) {
+                return (
+                  <p style={{ color: "var(--text-color)", opacity: 0.7, fontStyle: "italic", textAlign: "center", padding: "2rem" }}>
+                    No tienes ninguna CTO programada asignada.
+                  </p>
+                );
+              }
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "50vh", overflowY: "auto", paddingRight: "4px" }}>
+                  {myProgramadas.map((c) => (
+                    <div 
+                      key={c.id} 
+                      onClick={() => {
+                        setShowMyProgramadasModal(false);
+                        setSelectedCto(c);
+                      }}
+                      style={{ 
+                        border: "1px solid var(--border-color)", 
+                        borderRadius: "10px", 
+                        padding: "12px", 
+                        background: "var(--bg-color)",
+                        cursor: "pointer",
+                      }}
+                      className="hover-card"
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                        <span style={{ fontWeight: 700, color: "var(--text-color)", fontSize: "0.95rem" }}>
+                          CTO {c.num}
+                        </span>
+                        <span style={{ 
+                          fontSize: "0.75rem", 
+                          background: c.status === "PENDIENTE" ? "#fef3c7" : c.status === "CORRECTO" ? "#dcfce7" : "#fee2e2", 
+                          color: c.status === "PENDIENTE" ? "#d97706" : c.status === "CORRECTO" ? "#166534" : "#991b1b",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontWeight: 700
+                        }}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8 }}>
+                        {c.zona && <span>Zona: <strong>{c.zona}</strong></span>}
+                        {c.cluster && <span>Cluster: <strong>{c.cluster}</strong></span>}
+                      </div>
+                      {c.subStatus && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px" }}>
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: c.subStatus.color || "#808080" }} />
+                          <span style={{ fontSize: "0.78rem", color: "var(--text-color)", opacity: 0.9 }}>
+                            {c.subStatus.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            <button 
+              onClick={() => setShowMyProgramadasModal(false)}
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "1.5rem" }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE IMPACTO Y ESTADÍSTICAS DEL TÉCNICO (CLICK EN PLAN ALGODÓN) */}
+      {showImpactModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.5)",
+          backdropFilter: "blur(4px)",
+          zIndex: 3000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem"
+        }}>
+          <div className="glass-panel" style={{
+            width: "95%",
+            maxWidth: "380px",
+            background: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "16px",
+            padding: "24px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            color: "var(--text-color)"
+          }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1rem", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "var(--primary-color)" }}>●</span> Estadísticas del Proyecto
+            </h2>
+
+            {/* Progreso General */}
+            {(() => {
+              const total = ctos.length;
+              const audited = ctos.filter(c => c.status === "CORRECTO" || c.status === "FALLO").length;
+              const progress = total > 0 ? Math.round((audited / total) * 100) : 0;
+              
+              const currentUserId = (session?.user as any)?.id;
+              const userAudited = ctos.filter(c => (c.status === "CORRECTO" || c.status === "FALLO") && c.auditedById === currentUserId).length;
+              const userShareOfAudited = audited > 0 ? Math.round((userAudited / audited) * 100) : 0;
+              const userShareOfTotal = total > 0 ? Math.round((userAudited / total) * 100) : 0;
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  
+                  {/* Stats Cards */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color)", textAlign: "center" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>Total CTOs</span>
+                      <p style={{ fontSize: "1.4rem", fontWeight: 700, margin: "4px 0 0 0" }}>{total}</p>
+                    </div>
+                    <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color)", textAlign: "center" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>Auditadas</span>
+                      <p style={{ fontSize: "1.4rem", fontWeight: 700, margin: "4px 0 0 0", color: "#10b981" }}>{audited}</p>
+                    </div>
+                  </div>
+
+                  {/* Barra de Progreso General */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
+                      <span>Progreso de Auditoría</span>
+                      <span style={{ color: "var(--primary-color)" }}>{progress}%</span>
+                    </div>
+                    <div style={{ width: "100%", height: "12px", background: "var(--border-color)", borderRadius: "6px", overflow: "hidden", position: "relative" }}>
+                      <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, var(--primary-color), #f97316)", borderRadius: "6px", transition: "width 0.5s ease" }} />
+                    </div>
+                  </div>
+
+                  {/* Impacto Personal */}
+                  <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "12px" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)", display: "block", marginBottom: "8px" }}>
+                      Tu Impacto como Técnico:
+                    </span>
+                    <p style={{ fontSize: "0.8rem", margin: "4px 0", color: "var(--text-color)", opacity: 0.9 }}>
+                      • Has auditado <strong>{userAudited}</strong> CTOs.
+                    </p>
+                    <p style={{ fontSize: "0.8rem", margin: "4px 0", color: "var(--text-color)", opacity: 0.9 }}>
+                      • Representas el <strong>{userShareOfAudited}%</strong> del total auditado.
+                    </p>
+                    <p style={{ fontSize: "0.8rem", margin: "4px 0", color: "var(--text-color)", opacity: 0.9 }}>
+                      • Has cubierto el <strong>{userShareOfTotal}%</strong> de todo el proyecto.
+                    </p>
+                  </div>
+
+                  {/* Mini-barra de impacto apilada */}
+                  {audited > 0 && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>
+                        <span>Tu contribución (de las auditadas)</span>
+                        <span>{userShareOfAudited}%</span>
+                      </div>
+                      <div style={{ width: "100%", height: "8px", background: "var(--border-color)", borderRadius: "4px", overflow: "hidden" }}>
+                        <div style={{ width: `${userShareOfAudited}%`, height: "100%", background: "#10b981", borderRadius: "4px" }} />
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
+
+            <button 
+              onClick={() => setShowImpactModal(false)}
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "1.5rem", fontWeight: 700 }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Drawer inferior para detalles de CTO */}
       <CtoDrawer 
         cto={selectedCto} 
