@@ -38,12 +38,10 @@ export async function GET(req: NextRequest) {
     // 1. Identificar las CTOs que cambiaron a CORRECTO o FALLO hoy por este usuario
     const auditedCtoIds = new Set<string>();
     for (const record of historyRecords) {
-      const action = record.action || "";
+      const action = (record.action || "").toLowerCase();
       if (
-        action.includes("a CORRECTO") || 
-        action.includes("a FALLO") ||
-        action.includes("a: CORRECTO") ||
-        action.includes("a: FALLO")
+        action.includes("a correcto") || 
+        action.includes("a fallo")
       ) {
         auditedCtoIds.add(record.ctoId);
       }

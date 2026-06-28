@@ -58,12 +58,10 @@ export async function GET(req: NextRequest) {
       const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
       if (recordMadridStr !== targetDateStr) continue;
 
-      const action = log.action || "";
+      const action = (log.action || "").toLowerCase();
       if (
-        action.includes("a CORRECTO") ||
-        action.includes("a FALLO") ||
-        action.includes("a: CORRECTO") ||
-        action.includes("a: FALLO")
+        action.includes("a correcto") ||
+        action.includes("a fallo")
       ) {
         auditedCtoIds.add(log.ctoId);
       }

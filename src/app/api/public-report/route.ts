@@ -72,15 +72,31 @@ export async function GET(req: NextRequest) {
       orderBy: { timestamp: "desc" }
     });
 
+    // 1. Identificar CTOs que tuvieron un cambio de estado a CORRECTO o FALLO en la fecha
+    const auditedCtoIds = new Set<string>();
+    for (const log of historyLogs) {
+      const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+      if (recordMadridStr !== targetDateStr) continue;
+
+      const action = (log.action || "").toLowerCase();
+      if (
+        action.includes("a correcto") ||
+        action.includes("a fallo")
+      ) {
+        auditedCtoIds.add(log.ctoId);
+      }
+    }
+
+    // 2. Agrupar por CTO solo las que cambiaron de estado hoy
     const auditedTodayMap = new Map<string, any>();
 
     for (const log of historyLogs) {
       const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
       if (recordMadridStr !== targetDateStr) continue;
+      if (!log.cto) continue;
+      if (!auditedCtoIds.has(log.ctoId)) continue;
 
-      const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
-
-      if (isCtoAuditedState && !auditedTodayMap.has(log.ctoId)) {
+      if (!auditedTodayMap.has(log.ctoId)) {
         const auditTime = log.timestamp.toLocaleTimeString("es-ES", {
           timeZone: "Europe/Madrid",
           hour: "2-digit",

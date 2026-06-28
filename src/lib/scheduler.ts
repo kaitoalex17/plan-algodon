@@ -65,12 +65,10 @@ async function getDailySummaryData(prisma: PrismaClient) {
     const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
     if (recordMadridStr !== todayMadridStr) continue;
 
-    const action = log.action || "";
+    const action = (log.action || "").toLowerCase();
     if (
-      action.includes("a CORRECTO") ||
-      action.includes("a FALLO") ||
-      action.includes("a: CORRECTO") ||
-      action.includes("a: FALLO")
+      action.includes("a correcto") ||
+      action.includes("a fallo")
     ) {
       auditedCtoIds.add(log.ctoId);
     }
@@ -271,9 +269,9 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
       return;
     }
 
-    // 2. Determinar hora:minuto actual de Madrid
+    // 2. Determinar hora:minuto actual de Madrid en formato YYYY-MM-DD
     const now = new Date();
-    const madridDateStr = now.toLocaleDateString("en-US", { timeZone: "Europe/Madrid" });
+    const madridDateStr = now.toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
 
     const formatterHour = new Intl.DateTimeFormat("en-US", {
       timeZone: "Europe/Madrid",
