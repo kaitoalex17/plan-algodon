@@ -153,6 +153,30 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   } catch (err) {
     console.error("Error al registrar fuente Roboto:", err);
   }
+
+  // 1. Obtener mapa estático con pines
+  let mapBuffer: Buffer | null = null;
+  try {
+    const markers = ctos
+      .filter(c => c.lat && c.lng)
+      .slice(0, 30) // Limitar a 30 marcadores para evitar URLs excesivamente largas
+      .map(c => {
+        const color = c.status === "CORRECTO" ? "gn" : "rd"; // verde (green) o rojo (red)
+        return `${c.lng},${c.lat},pm2${color}m`;
+      })
+      .join("~");
+
+    if (markers) {
+      const staticMapUrl = `https://static-maps.yandex.ru/1.x/?l=map&size=600,350&pt=${markers}`;
+      const res = await fetch(staticMapUrl);
+      if (res.ok) {
+        const ab = await res.arrayBuffer();
+        mapBuffer = Buffer.from(ab);
+      }
+    }
+  } catch (err) {
+    console.error("Error cargando mapa estático Yandex:", err);
+  }
   
   // Título principal
   doc.fillColor("#1e293b").fontSize(20).text("Reporte Diario de Auditoría", { align: "center" });
@@ -177,39 +201,81 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
     techGroups[cto.auditor].push(cto);
   }
 
+  const rowHeight = 22;
+
   for (const [techName, techCtos] of Object.entries(techGroups)) {
+    // Si queda poco espacio al final de la página, saltar de página antes de pintar el técnico
+    if (doc.y > 620) {
+      doc.addPage();
+    }
+
     doc.fillColor("#f97316").fontSize(12).text(`Técnico: ${techName} (${techCtos.length} auditadas)`, { underline: false });
     doc.moveDown(0.5);
 
-    // Encabezados de tabla
+    // Cabeceras de la tabla
+    const headerY = doc.y;
     doc.fillColor("#475569").fontSize(9);
-    doc.text("Hora", 40, doc.y, { width: 50, continued: true });
-    doc.text("CTO", 90, doc.y, { width: 120, continued: true });
-    doc.text("Zona/Cluster", 210, doc.y, { width: 100, continued: true });
-    doc.text("Estado", 310, doc.y, { width: 70, continued: true });
-    doc.text("Subestado", 380, doc.y, { width: 150 });
-    doc.moveDown(0.3);
+    doc.text("Hora", 40, headerY, { width: 50 });
+    doc.text("CTO", 90, headerY, { width: 120 });
+    doc.text("Zona / Cluster", 220, headerY, { width: 100 });
+    doc.text("Estado", 330, headerY, { width: 70 });
+    doc.text("Subestado", 410, headerY, { width: 140 });
+
+    doc.y = headerY + 14;
     doc.strokeColor("#cbd5e1").lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown(0.5);
+    doc.y += 6;
 
     // Filas
-    doc.fillColor("#0f172a");
     for (const cto of techCtos) {
+      // Salto de página automático si se acaba el espacio vertical
+      if (doc.y > 700) {
+        doc.addPage();
+        
+        // Repintar cabeceras en la nueva página
+        const newPageHeaderY = doc.y;
+        doc.fillColor("#475569").fontSize(9);
+        doc.text("Hora", 40, newPageHeaderY, { width: 50 });
+        doc.text("CTO", 90, newPageHeaderY, { width: 120 });
+        doc.text("Zona / Cluster", 220, newPageHeaderY, { width: 100 });
+        doc.text("Estado", 330, newPageHeaderY, { width: 70 });
+        doc.text("Subestado", 410, newPageHeaderY, { width: 140 });
+
+        doc.y = newPageHeaderY + 14;
+        doc.strokeColor("#cbd5e1").lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
+        doc.y += 6;
+      }
+
       const currentY = doc.y;
+      doc.fillColor("#0f172a").fontSize(8.5);
       doc.text(cto.auditTime, 40, currentY, { width: 50 });
       doc.text(cto.num, 90, currentY, { width: 120 });
-      doc.text(`${cto.zona} / ${cto.cluster}`, 210, currentY, { width: 100 });
+      doc.text(`${cto.zona} / ${cto.cluster}`, 220, currentY, { width: 100 });
       
       doc.fillColor(cto.status === "CORRECTO" ? "#166534" : "#991b1b");
-      doc.text(cto.status, 310, currentY, { width: 70 });
+      doc.text(cto.status, 330, currentY, { width: 70 });
       
       doc.fillColor("#475569");
-      doc.text(cto.subStatusName, 380, currentY, { width: 150 });
+      doc.text(cto.subStatusName, 410, currentY, { width: 140 });
       
-      doc.moveDown(0.5);
-      doc.fillColor("#0f172a");
+      doc.y = currentY + rowHeight;
     }
+    doc.y += 15; // Margen de separación entre técnicos
+  }
+
+  // 2. Adjuntar el mapa al final si se descargaron los datos
+  if (mapBuffer) {
+    doc.addPage();
+    doc.fillColor("#1e293b").fontSize(14).text("Mapa de Auditorías del Día", { align: "center" });
+    doc.fontSize(9).fillColor("#64748b").text("Marcadores en verde representan CTOs correctas y en rojo con fallos.", { align: "center" });
     doc.moveDown(1.5);
+    try {
+      doc.image(mapBuffer, {
+        fit: [500, 320],
+        align: "center"
+      });
+    } catch (err) {
+      console.error("Error al incrustar imagen del mapa en PDFKit:", err);
+    }
   }
 
   return generatePdfBuffer(doc);
