@@ -1,9 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import * as XLSX from "xlsx";
-import nodemailer from "nodemailer";
 import { robotoBase64 } from "@/assets/fonts/robotoBase64";
 import fs from "fs";
 import { helveticaAfm } from "@/assets/fonts/helveticaAfm";
+import { sendMail, buildMailConfigFromSettings } from "@/lib/mailer";
 
 // Interceptar lecturas de Helvetica.afm para evitar ENOENT en entornos standalone / Docker
 if (!(fs as any).__helvetica_patched) {
@@ -38,7 +38,7 @@ function generatePdfBuffer(doc: any): Promise<Buffer> {
   });
 }
 
-// Recolectar datos diarios de CTOs auditadas
+// Recolectar datos diarios de CTOs auditadas (siempre usa la fecha de hoy en Madrid)
 async function getDailySummaryData(prisma: PrismaClient) {
   const todayMadridStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
   const startOfRange = new Date();
@@ -95,6 +95,8 @@ async function getDailySummaryData(prisma: PrismaClient) {
 
   return {
     date: todayMadridStr,
+    // Formato ISO para pasar como ?date= en la URL del reporte público
+    dateIso: new Date().toISOString().slice(0, 10),
     ctos: Array.from(auditedTodayMap.values()).sort((a, b) => a.timestamp - b.timestamp)
   };
 }
@@ -121,7 +123,7 @@ function buildExcelBuffer(ctos: any[]): Buffer {
 async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   const PDFDocument = (await import("pdfkit")).default;
   const doc = new PDFDocument({ margin: 40 });
-  
+
   try {
     const fontBuffer = Buffer.from(robotoBase64, "base64");
     doc.registerFont("Roboto", fontBuffer);
@@ -129,20 +131,19 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   } catch (err) {
     console.error("Error al registrar fuente Roboto en scheduler:", err);
   }
-  
-  // Título principal
-  doc.fillColor("#1e293b").fontSize(20).text("Reporte Diario de Auditoría", { align: "center" });
-  doc.fontSize(12).fillColor("#64748b").text(`Plan Algodón - Fecha: ${dateStr}`, { align: "center" });
+
+  doc.fillColor("#1e293b").fontSize(20).text("Reporte Diario de Auditoria", { align: "center" });
+  doc.fontSize(12).fillColor("#64748b").text(`Plan Algodon - Fecha: ${dateStr}`, { align: "center" });
   doc.moveDown(1.5);
 
   const total = ctos.length;
   const correctas = ctos.filter(c => c.status === "CORRECTO").length;
   const fallidas = ctos.filter(c => c.status === "FALLO").length;
 
-  doc.fillColor("#0f172a").fontSize(12).text(`Resumen de actividad de hoy:`, { underline: true });
-  doc.fontSize(10).text(`• Total CTOs Auditadas: ${total}`);
-  doc.text(`• Correctas: ${correctas}`);
-  doc.text(`• Con Fallos: ${fallidas}`);
+  doc.fillColor("#0f172a").fontSize(12).text(`Resumen de actividad:`, { underline: true });
+  doc.fontSize(10).text(`Total CTOs Auditadas: ${total}`);
+  doc.text(`Correctas: ${correctas}`);
+  doc.text(`Con Fallos: ${fallidas}`);
   doc.moveDown(2);
 
   const techGroups: Record<string, any[]> = {};
@@ -154,15 +155,11 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   const rowHeight = 22;
 
   for (const [techName, techCtos] of Object.entries(techGroups)) {
-    // Si queda poco espacio al final de la página, saltar de página antes de pintar el técnico
-    if (doc.y > 600) {
-      doc.addPage();
-    }
+    if (doc.y > 600) doc.addPage();
 
-    doc.fillColor("#f97316").fontSize(12).text(`Técnico: ${techName} (${techCtos.length} auditadas)`, { underline: false });
+    doc.fillColor("#f97316").fontSize(12).text(`Tecnico: ${techName} (${techCtos.length} auditadas)`);
     doc.moveDown(0.5);
 
-    // Cabeceras de la tabla
     const headerY = doc.y;
     doc.fillColor("#475569").fontSize(9);
     doc.text("Hora", 40, headerY, { width: 50 });
@@ -170,27 +167,21 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
     doc.text("Zona / Cluster", 220, headerY, { width: 100 });
     doc.text("Estado", 330, headerY, { width: 70 });
     doc.text("Subestado", 410, headerY, { width: 140 });
-
     doc.y = headerY + 14;
     doc.strokeColor("#cbd5e1").lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
     doc.y += 6;
 
-    // Filas
     for (const cto of techCtos) {
-      // Salto de página automático si se acaba el espacio vertical
       if (doc.y > 700) {
         doc.addPage();
-        
-        // Repintar cabeceras en la nueva página
-        const newPageHeaderY = doc.y;
+        const h = doc.y;
         doc.fillColor("#475569").fontSize(9);
-        doc.text("Hora", 40, newPageHeaderY, { width: 50 });
-        doc.text("CTO", 90, newPageHeaderY, { width: 120 });
-        doc.text("Zona / Cluster", 220, newPageHeaderY, { width: 100 });
-        doc.text("Estado", 330, newPageHeaderY, { width: 70 });
-        doc.text("Subestado", 410, newPageHeaderY, { width: 140 });
-
-        doc.y = newPageHeaderY + 14;
+        doc.text("Hora", 40, h, { width: 50 });
+        doc.text("CTO", 90, h, { width: 120 });
+        doc.text("Zona / Cluster", 220, h, { width: 100 });
+        doc.text("Estado", 330, h, { width: 70 });
+        doc.text("Subestado", 410, h, { width: 140 });
+        doc.y = h + 14;
         doc.strokeColor("#cbd5e1").lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
         doc.y += 6;
       }
@@ -200,17 +191,14 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
       doc.text(cto.auditTime, 40, currentY, { width: 50 });
       doc.text(cto.num, 90, currentY, { width: 120 });
       doc.text(`${cto.zona} / ${cto.cluster}`, 220, currentY, { width: 100 });
-      
       doc.fillColor(cto.status === "CORRECTO" ? "#166534" : "#991b1b");
       doc.text(cto.status, 330, currentY, { width: 70 });
-      
       doc.fillColor("#475569");
       doc.text(cto.subStatusName, 410, currentY, { width: 140 });
-      
       doc.y = currentY + rowHeight;
     }
 
-    // Obtener mapa estático de OpenStreetMap para este técnico
+    // Mapa OSM por tecnico
     let techMapBuffer: Buffer | null = null;
     try {
       const markers = techCtos
@@ -230,35 +218,24 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
       if (markers) {
         const staticMapUrl = `https://staticmap.openstreetmap.de/staticmap.php?zoom=13&size=550x300&maptype=mapnik&markers=${markers}`;
         const res = await fetch(staticMapUrl);
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          techMapBuffer = Buffer.from(ab);
-        }
+        if (res.ok) techMapBuffer = Buffer.from(await res.arrayBuffer());
       }
     } catch (err) {
-      console.error(`Error cargando mapa OpenStreetMap para ${techName}:`, err);
+      console.error(`Error cargando mapa OSM para ${techName}:`, err);
     }
 
     if (techMapBuffer) {
-      if (doc.y > 450) {
-        doc.addPage();
-      } else {
-        doc.y += 10;
-      }
-
-      doc.fillColor("#1e293b").fontSize(10).text(`Ubicación de CTOs Auditadas - Técnico: ${techName}`, { align: "left" });
+      if (doc.y > 450) doc.addPage(); else doc.y += 10;
+      doc.fillColor("#1e293b").fontSize(10).text(`Ubicacion de CTOs - Tecnico: ${techName}`, { align: "left" });
       doc.moveDown(0.4);
       try {
-        doc.image(techMapBuffer, {
-          fit: [480, 240],
-          align: "center"
-        });
+        doc.image(techMapBuffer, { fit: [480, 240], align: "center" });
         doc.y += 250;
       } catch (err) {
-        console.error("Error incrustando mapa de técnico:", err);
+        console.error("Error incrustando mapa:", err);
       }
     }
-    doc.y += 20; // Margen antes del siguiente técnico
+    doc.y += 20;
   }
 
   return generatePdfBuffer(doc);
@@ -269,17 +246,14 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
   try {
     const settings = await prisma.setting.findMany();
     const config: Record<string, string> = {};
-    for (const s of settings) {
-      config[s.key] = s.value;
-    }
+    for (const s of settings) config[s.key] = s.value;
 
     // 1. Validar si está habilitado
     if (config["email_schedule_enabled"] !== "true") return;
 
     // 2. Determinar hora actual de Madrid
     const now = new Date();
-    const madridDateStr = now.toLocaleDateString("en-US", { timeZone: "Europe/Madrid" }); // e.g. "6/28/2026"
-    
+    const madridDateStr = now.toLocaleDateString("en-US", { timeZone: "Europe/Madrid" });
     const formatterHour = new Intl.DateTimeFormat("en-US", {
       timeZone: "Europe/Madrid",
       hour: "numeric",
@@ -294,109 +268,68 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
     // 4. Comprobar si ya fue enviado hoy
     if (config["email_last_sent_date"] === madridDateStr) return;
 
-    // Bloqueo inmediato guardando la fecha de envío en la BD
+    // Bloqueo inmediato para evitar envíos duplicados
     await prisma.setting.upsert({
       where: { key: "email_last_sent_date" },
       update: { value: madridDateStr },
       create: { key: "email_last_sent_date", value: madridDateStr }
     });
 
-    console.log(`[Scheduler] Iniciando envío de reporte diario automático para ${madridDateStr}...`);
+    console.log(`[Scheduler] Iniciando envio de reporte diario automatico para ${madridDateStr}...`);
 
-    // 5. Cargar ajustes de envío
-    const emailMethod = config["email_method"] || "smtp";
-    const smtpHost = config["smtp_host"];
-    const smtpPort = parseInt(config["smtp_port"] || "587");
-    const smtpSecure = config["smtp_secure"] === "true";
-    const smtpUser = config["smtp_user"];
-    const smtpPass = config["smtp_pass"];
-    const emailRecipients = config["email_recipients"];
-
+    // 5. Cargar ajustes de envio
+    const emailRecipients = (config["email_recipients"] || "").trim();
     if (!emailRecipients) {
       console.warn("[Scheduler] No se han configurado destinatarios de correo.");
       return;
     }
 
-    // Crear transportador nodemailer
-    let transporter;
-    if (emailMethod === "smtp") {
-      if (!smtpHost || !smtpUser || !smtpPass) {
-        console.warn("[Scheduler] SMTP config is incomplete. Cancelling automatic report send.");
-        return;
-      }
-      transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
-      });
-    } else {
-      // Usar Sendmail local
-      transporter = nodemailer.createTransport({
-        sendmail: true,
-        newline: 'unix',
-        path: '/usr/sbin/sendmail'
-      });
+    const mailCfg = buildMailConfigFromSettings(config);
+    const emailFooter = config["email_footer"] || "Plan Algodon - Reportes Automatizados";
+
+    // 6. Obtener datos del dia
+    const data = await getDailySummaryData(prisma);
+
+    // Si no hubo auditorias hoy, registrar y no enviar
+    if (data.ctos.length === 0) {
+      console.log(`[Scheduler] Sin auditorias hoy (${data.date}). No se enviara el reporte.`);
+      return;
     }
 
-    const sender = emailMethod === "smtp" ? smtpUser : (smtpUser || "noreply@plan-algodon.com");
-
-    // 6. Obtener datos y compilar adjuntos
-    const data = await getDailySummaryData(prisma);
     const excelBuffer = buildExcelBuffer(data.ctos);
     const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
 
-    // Usar localhost o fallback ya que es un proceso en background sin req headers
-    const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const publicLink = `${appUrl}/public-report`;
+    // Construir enlace con fecha especifica para que el reporte interactivo muestre ese dia
+    const appUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+    const publicToken = config["public_access_token"] || "";
+    const dateParam = data.dateIso; // "YYYY-MM-DD"
+
+    let publicLink: string;
+    if (publicToken) {
+      publicLink = `${appUrl}/public-report?token=${publicToken}&date=${dateParam}`;
+    } else {
+      publicLink = `${appUrl}/public-report?date=${dateParam}`;
+    }
 
     const formattedDate = data.date.replace(/\//g, "-");
+    const correctas = data.ctos.filter(c => c.status === "CORRECTO").length;
+    const fallidas  = data.ctos.filter(c => c.status === "FALLO").length;
 
-    await transporter.sendMail({
-      from: `"Plan Algodón Reporte" <${sender}>`,
+    await sendMail({
       to: emailRecipients,
-      subject: `Resumen Diario de Auditoría - ${data.date} (Plan Algodón)`,
-      text: `Adjunto encontrarás el reporte de auditoría automático de hoy (${data.date}).\n\nTotal CTOs Auditadas hoy: ${data.ctos.length}\n\nEnlace de acceso público: ${publicLink}\nContraseña: netdata`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <h2 style="color: #f97316; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-top: 0;">Plan Algodón - Reporte Diario Automático</h2>
-          <p>Se ha generado el reporte de auditoría diario correspondiente al día <strong>${data.date}</strong>.</p>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 4px 0;">📊 <strong>Resumen de actividad:</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Total CTOs Auditadas hoy: <strong>${data.ctos.length}</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Correctas: <strong>${data.ctos.filter(c => c.status === "CORRECTO").length}</strong></p>
-            <p style="margin: 4px 0; padding-left: 15px;">• Fallidas: <strong>${data.ctos.filter(c => c.status === "FALLO").length}</strong></p>
-          </div>
-          <p>Puedes acceder a la visualización del mapa y lista pública en tiempo real aquí:</p>
-          <p style="text-align: center; margin: 24px 0;">
-            <a href="${publicLink}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ver Reporte Interactivo</a>
-          </p>
-          <p style="font-size: 0.85rem; color: #64748b;">* Contraseña de acceso predeterminada: <strong>netdata</strong>.</p>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <div style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">
-            ${config["email_footer"] || 'Plan Algodón - Reportes Automatizados'}
-          </div>
-        </div>
-      `,
+      subject: `Resumen Diario de Auditoria - ${data.date} (Plan Algodon)`,
+      text: `Reporte del ${data.date}.\nCTOs: ${data.ctos.length} | Correctas: ${correctas} | Fallidas: ${fallidas}\nAcceso: ${publicLink}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px;"><h2 style="color:#f97316;border-bottom:2px solid #f97316;padding-bottom:10px;margin-top:0;">Plan Algodon - Reporte Diario Automatico</h2><p>Reporte de auditoria del dia <strong>${data.date}</strong>.</p><div style="background:#f8fafc;padding:15px;border-radius:6px;margin:20px 0;border-left:4px solid #f97316;"><p style="margin:4px 0;font-weight:bold;">Resumen:</p><p style="margin:4px 0;padding-left:10px;">Total: <strong>${data.ctos.length}</strong></p><p style="margin:4px 0;padding-left:10px;">Correctas: <strong style="color:#166534">${correctas}</strong></p><p style="margin:4px 0;padding-left:10px;">Fallidas: <strong style="color:#991b1b">${fallidas}</strong></p></div><p>Adjuntos: PDF y Excel con el detalle completo.</p><p style="text-align:center;margin:24px 0;"><a href="${publicLink}" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Ver Reporte Interactivo del ${data.date}</a></p><hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/><div style="font-size:0.8rem;color:#94a3b8;text-align:center;">${emailFooter}</div></div>`,
       attachments: [
-        {
-          filename: `resumen_diario_${formattedDate}.xlsx`,
-          content: excelBuffer
-        },
-        {
-          filename: `resumen_diario_${formattedDate}.pdf`,
-          content: pdfBuffer
-        }
-      ]
-    });
+        { filename: `resumen_diario_${formattedDate}.xlsx`, content: excelBuffer },
+        { filename: `resumen_diario_${formattedDate}.pdf`,  content: pdfBuffer  },
+      ],
+    }, mailCfg);
 
-    console.log(`[Scheduler] Reporte diario enviado con éxito a ${emailRecipients} para la fecha ${madridDateStr}.`);
+    console.log(`[Scheduler] Reporte diario enviado a ${emailRecipients} para ${madridDateStr}.`);
   } catch (error: any) {
     console.error("[Scheduler] Error in checkAndSendDailyReport:", error);
-    // Resetear en caso de fallo para permitir reintento
+    // Resetear para permitir reintento
     try {
       await prisma.setting.delete({ where: { key: "email_last_sent_date" } }).catch(() => {});
     } catch (e) {}
@@ -408,15 +341,15 @@ export function startEmailScheduler(prisma: PrismaClient) {
   if (globalObject.emailSchedulerStarted) return;
 
   globalObject.emailSchedulerStarted = true;
-  console.log("[Scheduler] Planificador de reporte diario de correo iniciado (Verificaciones cada 10 minutos)...");
+  console.log("[Scheduler] Planificador de reporte diario iniciado (verificaciones cada 10 minutos)...");
 
   // Verificar cada 10 minutos
   setInterval(() => {
     checkAndSendDailyReport(prisma);
   }, 10 * 60 * 1000);
 
-  // Ejecución inicial tras 10 segundos
+  // Ejecución inicial tras 15 segundos
   setTimeout(() => {
     checkAndSendDailyReport(prisma);
-  }, 10000);
+  }, 15000);
 }

@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const password = searchParams.get("password");
     const token = searchParams.get("token");
+    const dateParam = searchParams.get("date"); // e.g. "2026-06-28"
 
     let isAuthorized = false;
 
@@ -32,13 +33,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Acceso denegado o token inválido" }, { status: 401 });
     }
 
-    // 2. Obtener fecha de hoy en Madrid
-    const todayMadridStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
-    const startOfRange = new Date();
-    startOfRange.setDate(startOfRange.getDate() - 2);
+    // Calcular la fecha objetivo en formato "es-ES" (Madrid) y rangos de búsqueda
+    let targetDateStr = "";
+    let startOfRange = new Date();
+
+    if (dateParam && dateParam !== "null" && dateParam !== "undefined" && dateParam.includes("-")) {
+      const [y, m, d] = dateParam.split("-");
+      const dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 12, 0, 0);
+      targetDateStr = dObj.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+
+      startOfRange = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 0, 0, 0);
+      startOfRange.setDate(startOfRange.getDate() - 1);
+    } else {
+      targetDateStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+      startOfRange.setDate(startOfRange.getDate() - 2);
+    }
+
+    const endOfRange = new Date(startOfRange);
+    endOfRange.setDate(endOfRange.getDate() + 3);
 
     const historyLogs = await prisma.history.findMany({
-      where: { timestamp: { gte: startOfRange } },
+      where: {
+        timestamp: {
+          gte: startOfRange,
+          lte: endOfRange
+        }
+      },
       include: {
         cto: {
           include: {
@@ -56,7 +76,7 @@ export async function GET(req: NextRequest) {
 
     for (const log of historyLogs) {
       const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
-      if (recordMadridStr !== todayMadridStr) continue;
+      if (recordMadridStr !== targetDateStr) continue;
 
       const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
 
@@ -89,7 +109,7 @@ export async function GET(req: NextRequest) {
     const auditedList = Array.from(auditedTodayMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
     return NextResponse.json({
-      date: todayMadridStr,
+      date: targetDateStr,
       count: auditedList.length,
       ctos: auditedList
     });

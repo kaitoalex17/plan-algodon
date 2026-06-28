@@ -18,6 +18,8 @@ export default function LotteryPage() {
 
   // Form selections
   const [selectedTechs, setSelectedTechs] = useState<string[]>([]);
+  // techWeights: { [userId]: number } — multiplicador de carga para el reparto
+  const [techWeights, setTechWeights] = useState<Record<string, number>>({});
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
   const [drawUnassigned, setDrawUnassigned] = useState(true);
   const [redistributeTechId, setRedistributeTechId] = useState("");
@@ -34,9 +36,13 @@ export default function LotteryPage() {
           const data = await res.json();
           setTechs(data.technicians || []);
           setZones(data.zones || []);
-          // Auto-select all zones and technicians as default
           setSelectedZones(data.zones || []);
-          setSelectedTechs((data.technicians || []).map((t: Technician) => t.id));
+          const allIds = (data.technicians || []).map((t: Technician) => t.id);
+          setSelectedTechs(allIds);
+          // Inicializar todos con peso 1
+          const weights: Record<string, number> = {};
+          for (const t of data.technicians || []) weights[t.id] = 1;
+          setTechWeights(weights);
         } else {
           alert("Error cargando opciones de sorteo.");
         }
@@ -53,6 +59,10 @@ export default function LotteryPage() {
     setSelectedTechs(prev =>
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
+  };
+
+  const handleWeightChange = (id: string, w: number) => {
+    setTechWeights(prev => ({ ...prev, [id]: w }));
   };
 
   const handleToggleZone = (zone: string) => {
@@ -80,11 +90,19 @@ export default function LotteryPage() {
       setApplying(true);
     }
 
+    // Pasar los pesos como array de { id, weight }
+    const participantsWithWeights = selectedTechs.map(id => ({
+      id,
+      weight: techWeights[id] ?? 1
+    }));
+
     try {
       const res = await fetch("/api/admin/lottery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          participantsWithWeights,
+          // compatibilidad hacia atrás
           participantIds: selectedTechs,
           zones: selectedZones,
           drawUnassigned,
@@ -141,23 +159,62 @@ export default function LotteryPage() {
             Ajustes del Reparto
           </h2>
 
-          {/* Técnicos Participantes */}
+          {/* Técnicos Participantes con peso */}
           <div style={{ marginBottom: "1.25rem" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 700 }}>
-              Técnicos que participan en el sorteo:
+            <label style={{ display: "block", marginBottom: "6px", fontSize: "0.9rem", fontWeight: 700 }}>
+              Técnicos participantes y multiplicador de carga:
             </label>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto", padding: "6px", background: "var(--bg-color)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
-              {techs.map(t => (
-                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer" }}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedTechs.includes(t.id)} 
-                    onChange={() => handleToggleTech(t.id)}
-                    style={{ width: "16px", height: "16px", accentColor: "var(--primary-color)" }}
-                  />
-                  {t.name || t.email}
-                </label>
-              ))}
+            <p style={{ fontSize: "0.76rem", color: "#64748b", marginBottom: "8px" }}>
+              El multiplicador (×1, ×2, ×3…) hace que un técnico reciba el doble o triple de CTOs. Útil si un perfil gestiona varias personas.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "180px", overflowY: "auto", padding: "6px", background: "var(--bg-color)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+              {techs.map(t => {
+                const isSelected = selectedTechs.includes(t.id);
+                return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", padding: "4px 2px", borderRadius: "4px", background: isSelected ? "rgba(249,115,22,0.06)" : "transparent" }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleTech(t.id)}
+                      style={{ width: "16px", height: "16px", accentColor: "var(--primary-color)", flexShrink: 0 }}
+                    />
+                    <span style={{ flex: 1, fontWeight: isSelected ? 600 : 400, color: isSelected ? "var(--text-color)" : "#94a3b8" }}>
+                      {t.name || t.email}
+                    </span>
+                    {/* Selector de multiplicador — solo visible si está seleccionado */}
+                    {isSelected && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b" }}>×</span>
+                        <select
+                          value={techWeights[t.id] ?? 1}
+                          onChange={e => handleWeightChange(t.id, parseInt(e.target.value))}
+                          style={{
+                            padding: "2px 6px",
+                            fontSize: "0.82rem",
+                            fontWeight: 700,
+                            background: techWeights[t.id] > 1 ? "#fff7ed" : "var(--bg-color)",
+                            color: techWeights[t.id] > 1 ? "#ea580c" : "var(--text-color)",
+                            border: `1px solid ${techWeights[t.id] > 1 ? "#f97316" : "var(--border-color)"}`,
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            minWidth: "48px"
+                          }}
+                          title="Multiplicador: este técnico recibirá N veces más CTOs que uno con ×1"
+                        >
+                          {[1, 2, 3, 4, 5].map(n => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                        {techWeights[t.id] > 1 && (
+                          <span style={{ fontSize: "0.7rem", color: "#ea580c", fontWeight: 700, whiteSpace: "nowrap" }}>
+                            ×{techWeights[t.id]}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -172,9 +229,9 @@ export default function LotteryPage() {
               ) : (
                 zones.map(z => (
                   <label key={z} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", background: "var(--card-bg)", padding: "4px 8px", borderRadius: "4px", border: "1px solid var(--border-color)" }}>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedZones.includes(z)} 
+                    <input
+                      type="checkbox"
+                      checked={selectedZones.includes(z)}
                       onChange={() => handleToggleZone(z)}
                       style={{ width: "14px", height: "14px", accentColor: "var(--primary-color)" }}
                     />
@@ -192,9 +249,9 @@ export default function LotteryPage() {
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer" }}>
-                <input 
-                  type="checkbox" 
-                  checked={drawUnassigned} 
+                <input
+                  type="checkbox"
+                  checked={drawUnassigned}
                   onChange={e => setDrawUnassigned(e.target.checked)}
                   style={{ width: "16px", height: "16px", accentColor: "var(--primary-color)" }}
                 />
@@ -248,18 +305,26 @@ export default function LotteryPage() {
                   <thead>
                     <tr style={{ borderBottom: "2px solid var(--border-color)", textAlign: "left" }}>
                       <th style={{ padding: "8px" }}>Técnico</th>
-                      <th style={{ padding: "8px", textAlign: "center" }}>CTOs Totales</th>
-                      <th style={{ padding: "8px" }}>Desglose por Subestado</th>
+                      <th style={{ padding: "8px", textAlign: "center" }}>Multiplicador</th>
+                      <th style={{ padding: "8px", textAlign: "center" }}>CTOs Asignadas</th>
+                      <th style={{ padding: "8px" }}>Desglose</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.values(previewData).map((p: any) => (
                       <tr key={p.userId} style={{ borderBottom: "1px solid var(--border-color)" }}>
                         <td style={{ padding: "8px", fontWeight: 700 }}>{p.name}</td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          {p.weight && p.weight > 1 ? (
+                            <span style={{ background: "#fff7ed", color: "#ea580c", padding: "2px 8px", borderRadius: "4px", fontWeight: 700, fontSize: "0.8rem" }}>×{p.weight}</span>
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>×1</span>
+                          )}
+                        </td>
                         <td style={{ padding: "8px", textAlign: "center", fontWeight: 700, color: "var(--primary-color)" }}>{p.ctos.length}</td>
                         <td style={{ padding: "8px" }}>
                           {Object.keys(p.counts).length === 0 ? (
-                            <span style={{ color: "#64748b", fontStyle: "italic" }}>Sin subestados específicos</span>
+                            <span style={{ color: "#64748b", fontStyle: "italic" }}>Sin subestados</span>
                           ) : (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                               {Object.entries(p.counts).map(([subName, count]: any) => (

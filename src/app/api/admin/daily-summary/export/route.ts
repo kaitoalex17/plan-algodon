@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -45,17 +45,20 @@ function generatePdfBuffer(doc: any): Promise<Buffer> {
 // Función común para recolectar datos del día en Madrid
 async function getDailySummaryData(dateParam: string | null = null) {
   let targetDateStr = "";
+  let dateIso = "";
   let startOfRange = new Date();
 
   if (dateParam && dateParam !== "null" && dateParam !== "undefined" && dateParam.includes("-")) {
     const [y, m, d] = dateParam.split("-");
     const dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 12, 0, 0);
     targetDateStr = dObj.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+    dateIso = dateParam;
 
     startOfRange = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 0, 0, 0);
     startOfRange.setDate(startOfRange.getDate() - 1);
   } else {
     targetDateStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+    dateIso = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
     startOfRange.setDate(startOfRange.getDate() - 2);
   }
 
@@ -118,6 +121,7 @@ async function getDailySummaryData(dateParam: string | null = null) {
 
   return {
     date: targetDateStr,
+    dateIso,
     ctos: Array.from(auditedTodayMap.values()).sort((a, b) => a.timestamp - b.timestamp)
   };
 }
@@ -391,9 +395,10 @@ export async function POST(req: NextRequest) {
     const reqHost  = req.headers.get("host") || "localhost:3000";
     const reqProto = req.headers.get("x-forwarded-proto") || "http";
     const publicToken = config["public_access_token"] || "";
+    const dateParamStr = data.dateIso;
     const publicLink = publicToken
-      ? `${reqProto}://${reqHost}/public-report?token=${publicToken}`
-      : `${reqProto}://${reqHost}/public-report`;
+      ? `${reqProto}://${reqHost}/public-report?token=${publicToken}&date=${dateParamStr}`
+      : `${reqProto}://${reqHost}/public-report?date=${dateParamStr}`;
 
     const formattedDate = data.date.replace(/\//g, "-");
     const correctas = data.ctos.filter((c: any) => c.status === "CORRECTO").length;

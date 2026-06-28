@@ -47,7 +47,10 @@ export default function PublicReportPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/public-report?token=${encodeURIComponent(tokenToVerify)}`);
+      const urlParams = new URLSearchParams(window.location.search);
+      const date = urlParams.get("date") || "";
+      const dateQuery = date ? `&date=${encodeURIComponent(date)}` : "";
+      const res = await fetch(`/api/public-report?token=${encodeURIComponent(tokenToVerify)}${dateQuery}`);
       if (res.ok) {
         const payload = await res.json();
         setData(payload);
@@ -68,7 +71,10 @@ export default function PublicReportPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/public-report?password=${encodeURIComponent(passToVerify)}`);
+      const urlParams = new URLSearchParams(window.location.search);
+      const date = urlParams.get("date") || "";
+      const dateQuery = date ? `&date=${encodeURIComponent(date)}` : "";
+      const res = await fetch(`/api/public-report?password=${encodeURIComponent(passToVerify)}${dateQuery}`);
       if (res.ok) {
         const payload = await res.json();
         setData(payload);
