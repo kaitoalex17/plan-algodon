@@ -35,10 +35,26 @@ export async function GET(req: NextRequest) {
       orderBy: { timestamp: "desc" }
     });
 
-    // Agrupar por CTO para quedarnos con el último cambio de hoy
+    // 1. Identificar las CTOs que cambiaron a CORRECTO o FALLO hoy por este usuario
+    const auditedCtoIds = new Set<string>();
+    for (const record of historyRecords) {
+      const action = record.action || "";
+      if (
+        action.includes("a CORRECTO") || 
+        action.includes("a FALLO") ||
+        action.includes("a: CORRECTO") ||
+        action.includes("a: FALLO")
+      ) {
+        auditedCtoIds.add(record.ctoId);
+      }
+    }
+
+    // 2. Agrupar por CTO para quedarnos con el último cambio de hoy, filtrando solo las auditadas hoy
     const uniqueCtosMap = new Map();
     for (const record of historyRecords) {
       if (!record.cto) continue;
+      if (!auditedCtoIds.has(record.ctoId)) continue;
+
       if (!uniqueCtosMap.has(record.ctoId)) {
         uniqueCtosMap.set(record.ctoId, {
           ...record.cto,
