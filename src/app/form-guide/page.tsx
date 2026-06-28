@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 type Splitter = {
-  signal: string; // string input to preserve user typing
+  signal: string;
 };
 
 type DamageKey = 
@@ -20,8 +20,8 @@ type DamageKey =
 export default function FormGuidePage() {
   return (
     <Suspense fallback={
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white" }}>
-        <p style={{ fontWeight: 700 }}>Cargando Guía de Formulario...</p>
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#090d16", color: "white" }}>
+        <p style={{ fontWeight: 700, fontFamily: "system-ui, sans-serif" }}>Cargando Guía de Formulario...</p>
       </div>
     }>
       <FormGuideContent />
@@ -35,15 +35,19 @@ function FormGuideContent() {
   const ctoId = searchParams.get("ctoId");
   const { data: session, status: authStatus } = useSession();
 
-  // Questionnaire Config
+  // Config & Metadata
   const [config, setConfig] = useState<any>(null);
   const [lang, setLang] = useState<"es" | "uk">("es");
   const [ctoNum, setCtoNum] = useState("");
 
-  // Input states
+  // Survey navigation state (1 to 6)
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // Step 1: Ubicación
   const [ubicacionOption, setUbicacionOption] = useState("");
   const [ubicacionOtros, setUbicacionOtros] = useState("");
   
+  // Step 2: Daños
   const [tieneDanos, setTieneDanos] = useState<boolean | null>(null);
   const [danosChecked, setDanosChecked] = useState<Record<DamageKey, boolean>>({
     tapa: false,
@@ -55,29 +59,35 @@ function FormGuideContent() {
     splitterRoto: false
   });
 
+  // Step 3: Llaves
   const [requiereLlaves, setRequiereLlaves] = useState<boolean | null>(null);
-  const [llavesOption, setLlavesOption] = useState("");
-  const [llavesContacto, setLlavesContacto] = useState("");
+  const [llavesNombre, setLlavesNombre] = useState("");
+  const [llavesTelefono, setLlavesTelefono] = useState("");
+  const [llavesNoDatos, setLlavesNoDatos] = useState(false);
 
+  // Step 4: Splitters (Initial 1 splitter)
   const [splitters, setSplitters] = useState<Splitter[]>([
-    { signal: "" },
     { signal: "" }
   ]);
 
+  // Step 5: Antala Sincronismo
   const [requiereAntala, setRequiereAntala] = useState<boolean | null>(null);
 
+  // Step 6: Área de influencia
   const [influenciaPorterillo, setInfluenciaPorterillo] = useState(false);
   const [influenciaCalle, setInfluenciaCalle] = useState(false);
   const [calleTipo, setCalleTipo] = useState("Calle");
+  const [calleNombre, setCalleNombre] = useState("");
   const [calleNumeros, setCalleNumeros] = useState<string[]>([""]);
   const [influenciaOtros, setInfluenciaOtros] = useState(false);
   const [influenciaOtrosTexto, setInfluenciaOtrosTexto] = useState("");
 
+  // Result modal state
   const [generatedComment, setGeneratedComment] = useState("");
   const [showResultModal, setShowResultModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Load configuration and CTO details
+  // Load config & CTO data
   useEffect(() => {
     if (authStatus === "unauthenticated") {
       router.push("/login");
@@ -85,15 +95,11 @@ function FormGuideContent() {
     }
     
     if (ctoId) {
-      // Load questionnaire config
       fetch("/api/admin/questionnaire-settings")
         .then(res => res.json())
-        .then(data => {
-          setConfig(data);
-        })
-        .catch(err => console.error("Error loading questionnaire config:", err));
+        .then(data => setConfig(data))
+        .catch(err => console.error("Error loading config:", err));
 
-      // Load CTO details
       fetch(`/api/ctos/${ctoId}`)
         .then(res => res.json())
         .then(data => {
@@ -101,76 +107,80 @@ function FormGuideContent() {
           if (data.formDataJson) {
             try {
               const saved = JSON.parse(data.formDataJson);
-              // Pre-fill fields if they were saved before
               setLang(saved.lang || "es");
+              
               if (saved.ubicacion) {
                 setUbicacionOption(saved.ubicacion);
+                const matches = config?.ubicacion?.options?.some((o: any) => o.es === saved.ubicacion);
+                if (!matches && saved.ubicacion) {
+                  setUbicacionOption("Otros");
+                  setUbicacionOtros(saved.ubicacion);
+                }
               }
+
               if (saved.danos && saved.danos.length > 0) {
                 setTieneDanos(true);
-                // Check matching checkboxes
-                const updatedDanos = { ...danosChecked };
+                const updated = { ...danosChecked };
                 saved.danosKeys?.forEach((k: DamageKey) => {
-                  updatedDanos[k] = true;
+                  updated[k] = true;
                 });
-                setDanosChecked(updatedDanos);
+                setDanosChecked(updated);
               } else if (saved.danos) {
                 setTieneDanos(false);
               }
+
               setRequiereLlaves(saved.requiereLlaves);
-              setLlavesOption(saved.llavesOption || "");
-              setLlavesContacto(saved.datosLlaves || "");
+              setLlavesNombre(saved.llavesNombre || "");
+              setLlavesTelefono(saved.llavesTelefono || "");
+              setLlavesNoDatos(saved.llavesNoDatos || false);
+
               if (saved.splitters && saved.splitters.length > 0) {
                 setSplitters(saved.splitters);
               }
+
               setRequiereAntala(saved.requiereAntala);
               setInfluenciaPorterillo(saved.influenciaPorterillo || false);
               setInfluenciaCalle(saved.influenciaCalle || false);
               setCalleTipo(saved.calleTipo || "Calle");
+              setCalleNombre(saved.calleNombre || "");
               setCalleNumeros(saved.calleNumeros || [""]);
               setInfluenciaOtros(saved.influenciaOtros || false);
               setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
             } catch (e) {
-              console.error("Error parsing prefilled form data:", e);
+              console.error("Error parsing saved data:", e);
             }
           }
         })
-        .catch(err => console.error("Error loading CTO details:", err));
+        .catch(err => console.error("Error loading CTO:", err));
     }
-  }, [ctoId, authStatus, router]);
+  }, [ctoId, authStatus, router, config?.ubicacion?.options]);
 
   if (authStatus === "loading" || !config) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white" }}>
-        <p style={{ fontWeight: 700 }}>Cargando Guía de Formulario...</p>
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#090d16", color: "white" }}>
+        <p style={{ fontWeight: 700, fontFamily: "system-ui, sans-serif" }}>Cargando Guía de Formulario...</p>
       </div>
     );
   }
 
-  const addSplitter = () => {
-    setSplitters([...splitters, { signal: "" }]);
-  };
-
+  // Splitter handlers
+  const addSplitter = () => setSplitters([...splitters, { signal: "" }]);
   const removeSplitter = (index: number) => {
     if (splitters.length <= 1) return;
     setSplitters(splitters.filter((_, i) => i !== index));
   };
-
   const updateSplitterSignal = (index: number, val: string) => {
     const updated = [...splitters];
     updated[index].signal = val;
     setSplitters(updated);
   };
 
-  const addCalleNumero = () => {
-    setCalleNumeros([...calleNumeros, ""]);
-  };
-
+  // Portal/number handlers
+  const addCalleNumero = () => setCalleNumeros([...calleNumeros, ""]);
   const removeCalleNumero = (index: number) => {
     if (calleNumeros.length <= 1) return;
     setCalleNumeros(calleNumeros.filter((_, i) => i !== index));
   };
-
   const updateCalleNumero = (index: number, val: string) => {
     const updated = [...calleNumeros];
     updated[index] = val;
@@ -180,19 +190,23 @@ function FormGuideContent() {
   const generateReportText = () => {
     const lines: string[] = [];
 
-    // 1. Ubicación
-    let finalUbi = ubicacionOption;
-    if (ubicacionOption === "Otros (introducir manualmente)" || ubicacionOption === "Otros" || ubicacionOption.startsWith("Otros")) {
-      finalUbi = ubicacionOtros || "Otros";
+    // 1. Ubicación (Optional - omitted if blank)
+    let finalUbi = "";
+    if (ubicacionOption && ubiRequiresInput(ubicacionOption)) {
+      finalUbi = ubicacionOtros.trim();
+    } else if (ubicacionOption) {
+      finalUbi = ubicacionOption.trim();
     }
-    lines.push(`- Ubicación de la caja CTO: ${finalUbi || "No indicada"}`);
+    if (finalUbi) {
+      lines.push(`- Ubicación de la caja CTO: ${finalUbi}`);
+    }
 
-    // 2. Daños
+    // 2. Daños (Optional - omitted if blank or No)
     if (tieneDanos === true) {
       const selectedDanos: string[] = [];
       const keysMap: Record<DamageKey, string> = {
         tapa: "Le falta la tapa",
-        rotos: "Tiene cables rotos o dañados",
+        rotos: "Tiene cables rotos o daños",
         doblados: "Tiene cables doblados",
         cerrar: "No se puede cerrar",
         sucia: "Está sucia y/o llena de agua",
@@ -209,17 +223,14 @@ function FormGuideContent() {
       }
     }
 
-    // 3. Llaves
+    // 3. Llaves (Optional - omitted if blank or No)
     if (requiereLlaves === true) {
-      let contactDetail = "";
-      if (llavesOption === "Nombre del presidente/conserje" && llavesContacto) {
-        contactDetail = `Contacto: ${llavesContacto}`;
-      } else if (llavesOption === "Número de teléfono" && llavesContacto) {
-        contactDetail = `Teléfono: ${llavesContacto}`;
-      } else {
-        contactDetail = "Sin datos de contacto";
-      }
-      lines.push(`- Se requieren llaves para acceder a la CTO. ${contactDetail}`);
+      const contacts: string[] = [];
+      if (llavesNombre.trim()) contacts.push(`Presidente/Conserje: ${llavesNombre.trim()}`);
+      if (llavesTelefono.trim()) contacts.push(`Teléfono: ${llavesTelefono.trim()}`);
+      
+      const contactStr = contacts.length > 0 ? contacts.join(" - ") : "Sin datos de contacto";
+      lines.push(`- Se requieren llaves para acceder a la CTO. ${contactStr}`);
     }
 
     // 4. Splitters Attenuation & Antala Failures
@@ -232,7 +243,6 @@ function FormGuideContent() {
     splitters.forEach((s, idx) => {
       if (!s.signal) return;
       
-      // Clean and format signal: e.g. "22.15" -> "-22.15"
       let signalStr = s.signal.trim();
       if (!signalStr.startsWith("-")) {
         signalStr = "-" + signalStr;
@@ -258,7 +268,7 @@ function FormGuideContent() {
       splitterComments.forEach(sc => lines.push(`  ${sc}`));
     }
 
-    // 5. Antala Sincronismo
+    // 5. Antala Sincronismo (Optional - omitted if blank)
     if (requiereAntala === true) {
       if (antalaErrors.length > 0) {
         lines.push("- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:");
@@ -268,17 +278,18 @@ function FormGuideContent() {
       }
     }
 
-    // 6. Área de influencia
+    // 6. Área de influencia (Optional - omitted if blank)
     const influenciaParts: string[] = [];
     if (influenciaPorterillo) {
       influenciaParts.push("Se adjunta foto del porterillo automático");
     }
-    if (influenciaCalle) {
+    if (influenciaCalle && calleNombre.trim()) {
       const numbers = calleNumeros.filter(n => n.trim() !== "");
-      influenciaParts.push(`Vía pública (${calleTipo} y Números: ${numbers.join(", ") || "N/A"})`);
+      const numbersStr = numbers.length > 0 ? ` Nº ${numbers.join(", ")}` : "";
+      influenciaParts.push(`Vía pública: ${calleTipo} ${calleNombre.trim()}${numbersStr}`);
     }
-    if (influenciaOtros && influenciaOtrosTexto) {
-      influenciaParts.push(`Otros: ${influenciaOtrosTexto}`);
+    if (influenciaOtros && influenciaOtrosTexto.trim()) {
+      influenciaParts.push(`Otros: ${influenciaOtrosTexto.trim()}`);
     }
 
     if (influenciaParts.length > 0) {
@@ -296,15 +307,13 @@ function FormGuideContent() {
     setSaving(true);
 
     try {
-      // Build raw answers payload to store in formDataJson
       const selectedDanosKeys = (Object.keys(danosChecked) as DamageKey[]).filter(k => danosChecked[k]);
       
       let finalUbi = ubicacionOption;
-      if (ubicacionOption === "Otros (introducir manualmente)" || ubicacionOption === "Otros") {
+      if (ubiRequiresInput(ubicacionOption)) {
         finalUbi = ubicacionOtros;
       }
 
-      // Format splitters
       const formattedSplitters = splitters.map(s => {
         let signalStr = s.signal.trim();
         if (signalStr && !signalStr.startsWith("-")) {
@@ -316,41 +325,31 @@ function FormGuideContent() {
       const payload = {
         lang,
         ubicacion: finalUbi,
-        danos: tieneDanos ? selectedDanosKeys.map(k => {
-          const names: Record<DamageKey, string> = {
-            tapa: "Le falta la tapa",
-            rotos: "Tiene cables rotos",
-            doblados: "Tiene cables doblados",
-            cerrar: "No se puede cerrar",
-            sucia: "Sucia/Agua",
-            enfrentadores: "Faltan enfrentadores",
-            splitterRoto: "Splitters rotos"
-          };
-          return names[k];
-        }) : [],
+        danos: tieneDanos ? selectedDanosKeys.map(k => t.danosOptions[k]) : [],
         danosKeys: selectedDanosKeys,
         requiereLlaves,
-        llavesOption,
-        datosLlaves: llavesContacto,
+        llavesNombre,
+        llavesTelefono,
+        llavesNoDatos,
         splitters: formattedSplitters,
         requiereAntala,
         influenciaPorterillo,
         influenciaCalle,
         calleTipo,
+        calleNombre,
         calleNumeros: calleNumeros.filter(n => n.trim() !== ""),
         influenciaOtros,
         influenciaOtrosTexto,
         generatedComment: reportText
       };
 
-      // Save to server
       const res = await fetch(`/api/ctos/${ctoId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          commentText: reportText, // Adds directly to CTO comments wall
-          formDataJson: JSON.stringify(payload), // Saves form data
-          hasFormulario: true // Mark checklist item as done
+          commentText: reportText, 
+          formDataJson: JSON.stringify(payload),
+          hasFormulario: true
         })
       });
 
@@ -370,11 +369,11 @@ function FormGuideContent() {
     alert("¡Comentario copiado al portapapeles con éxito!");
   };
 
-  // Translations
+  // Translations dictionary
   const t = {
     title: lang === "es" ? "Guía de Formulario de Auditoría" : "Посібник з аудиту форми",
     subtitle: lang === "es" ? `CTO número: ${ctoNum}` : `CTO номер: ${ctoNum}`,
-    langSelect: lang === "es" ? "Idioma" : "Мова",
+    stepLabel: lang === "es" ? `Paso ${currentStep} de 6` : `Крок ${currentStep} з 6`,
     
     // Q1
     q1Title: lang === "es" ? "1. ¿Dónde se encuentra la CTO?" : "1. Де знаходиться CTO?",
@@ -382,7 +381,7 @@ function FormGuideContent() {
     q1WriteOther: lang === "es" ? "Especifica la ubicación (otros):" : "Вкажіть розташування (інше):",
 
     // Q2
-    q2Title: lang === "es" ? "2. ¿La CTO está con daños o suciedad visible?" : "2. Чи має CTO видимі пошкодження або бруд?",
+    q2Title: lang === "es" ? "2. ¿La CTO tiene daños o suciedad visible?" : "2. Чи має CTO видимі пошкодження або бруд?",
     yes: lang === "es" ? "Sí" : "Так",
     no: lang === "es" ? "No" : "Ні",
     danosLabel: lang === "es" ? "Marca los problemas detectados:" : "Позначте виявлені проблеми:",
@@ -391,20 +390,16 @@ function FormGuideContent() {
       rotos: lang === "es" ? "Tiene cables rotos o dañados" : "Має обірвані або пошкоджені кабелі",
       doblados: lang === "es" ? "Tiene cables doblados" : "Має загнуті кабелі",
       cerrar: lang === "es" ? "No se puede cerrar" : "Не закривається",
-      sucia: lang === "es" ? "Está sucia y/o llena de agua" : "Брудна та/або заповнена водою",
+      sucia: lang === "es" ? "Está sucia y/o llena de agua" : "Брудна та/аora заповнена водою",
       enfrentadores: lang === "es" ? "Le faltan enfrentadores" : "Відсутні з'єднувачі/адаптери",
       splitterRoto: lang === "es" ? "Tiene los divisores/splitter rotos" : "Має зламані дільники/спліттери"
     },
 
     // Q3
     q3Title: lang === "es" ? "3. ¿Se requieren llaves?" : "3. Чи потрібні ключі?",
-    llavesLabel: lang === "es" ? "Selecciona una opción de contacto:" : "Оберіть варіант контакту:",
-    llavesOptions: {
-      conserje: lang === "es" ? "Nombre del presidente/conserje" : "Ім'я голови/консьєржа",
-      tel: lang === "es" ? "Número de teléfono" : "Номер телефону",
-      nodata: lang === "es" ? "No tengo ningún dato (se requieren llaves)" : "Немає жодних даних (потрібні ключі)"
-    },
-    llavesInput: lang === "es" ? "Introduce los datos de contacto:" : "Введіть контактні дані:",
+    llavesName: lang === "es" ? "Nombre del presidente / conserje (opcional)" : "Ім'я голови / консьєржа (опціонально)",
+    llavesPhone: lang === "es" ? "Número de teléfono (opcional)" : "Номер телефону (опціонально)",
+    llavesCheckbox: lang === "es" ? "No tengo ningún dato de contacto" : "Немає жодних контактних даних",
 
     // Q4
     q4Title: lang === "es" ? "4. Indicar señal de Divisores" : "4. Вказати сигнал дільників",
@@ -418,51 +413,130 @@ function FormGuideContent() {
     // Q6
     q6Title: lang === "es" ? "6. Área de influencia" : "6. Зона впливу",
     calleTipoLabel: lang === "es" ? "Tipo de vía:" : "Тип вулиці:",
+    calleNombreLabel: lang === "es" ? "Nombre de la vía (calle/avenida):" : "Назва вулиці (вулиця/проспект):",
     calleNumerosLabel: lang === "es" ? "Números de portales:" : "Номери будинків:",
     addCalleNumBtn: lang === "es" ? "Agregar número" : "Додати номер",
     influenciaOptions: {
       porterillo: lang === "es" ? "Porterillo automático" : "Домофон",
       calle: lang === "es" ? "Calle / Vía pública" : "Вулиця / Громадське місце",
-      otros: lang === "es" ? "Otros (introducir manualmente)" : "Інше (ввести вручну)"
+      otros: lang === "es" ? "Otros (introducir manualmente)" : "Інше (ввести вручную)"
     },
     influenciaOtrosLabel: lang === "es" ? "Detalla otros elementos:" : "Вкажіть інші елементи:",
 
-    submitBtn: lang === "es" ? "Guardar y ver comentario" : "Зберегти та переглянути коментар",
-    backBtn: lang === "es" ? "Volver" : "Назад"
+    // Navigation buttons
+    next: lang === "es" ? "Siguiente" : "Далі",
+    skip: lang === "es" ? "Saltar" : "Пропустити",
+    back: lang === "es" ? "Atrás" : "Назад",
+    submitBtn: lang === "es" ? "Guardar y ver comentario" : "Зберегти та переглянути коментар"
+  };
+
+  function ubiRequiresInput(val: string) {
+    const v = val.toLowerCase();
+    return v.includes("indicar") || v.includes("otros") || v.includes("інше") || v.includes("вказати");
+  }
+
+  // Navigate forward
+  const nextStep = () => {
+    if (currentStep < 6) setCurrentStep(currentStep + 1);
+  };
+
+  // Navigate backward
+  const prevStep = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+  };
+
+  // Skip question
+  const skipStep = () => {
+    if (currentStep === 1) {
+      setUbicacionOption("");
+      setUbicacionOtros("");
+    } else if (currentStep === 2) {
+      setTieneDanos(null);
+      setDanosChecked({
+        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false
+      });
+    } else if (currentStep === 3) {
+      setRequiereLlaves(null);
+      setLlavesNombre("");
+      setLlavesTelefono("");
+      setLlavesNoDatos(false);
+    } else if (currentStep === 4) {
+      setSplitters([{ signal: "" }]);
+    } else if (currentStep === 5) {
+      setRequiereAntala(null);
+    }
+
+    if (currentStep < 6) {
+      setCurrentStep(currentStep + 1);
+    }
   };
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#0f172a",
-      color: "white",
-      fontFamily: "system-ui, sans-serif",
-      padding: "1.5rem 1rem"
+      background: "#090d16",
+      color: "#f8fafc",
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      padding: "2.5rem 1rem",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      alignItems: "center"
     }}>
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+      {/* CSS Animaciones y transiciones premium */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-step {
+          animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .survey-btn-option {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .survey-btn-option:hover {
+          background-color: rgba(255, 255, 255, 0.08) !important;
+          border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        .survey-input {
+          transition: all 0.2s ease-in-out;
+        }
+        .survey-input:focus {
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+          outline: none;
+        }
+      `}} />
+
+      <div style={{ maxWidth: "540px", width: "100%" }}>
         
-        {/* Header / Idioma */}
+        {/* Header / Selector de Idioma */}
         <header style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "1.5rem",
-          background: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: "12px",
-          padding: "10px 16px"
+          background: "rgba(30, 41, 59, 0.45)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.06)",
+          borderRadius: "16px",
+          padding: "16px 20px",
+          boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)"
         }}>
           <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>{t.title}</h1>
-            <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>{t.subtitle}</span>
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em", color: "#ffffff" }}>{t.title}</h1>
+            <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 500 }}>{t.subtitle}</span>
           </div>
 
-          <div style={{ display: "flex", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "6px", background: "rgba(15, 23, 42, 0.4)", padding: "4px", borderRadius: "10px" }}>
             <button 
               onClick={() => setLang("es")} 
               style={{
-                background: lang === "es" ? "var(--primary-color)" : "#334155",
-                color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem"
+                background: lang === "es" ? "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" : "transparent",
+                color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
+                transition: "all 0.2s"
               }}
             >
               ESP
@@ -470,8 +544,9 @@ function FormGuideContent() {
             <button 
               onClick={() => setLang("uk")} 
               style={{
-                background: lang === "uk" ? "var(--primary-color)" : "#334155",
-                color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem"
+                background: lang === "uk" ? "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" : "transparent",
+                color: "white", border: "none", borderRadius: "7px", padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: "0.75rem",
+                transition: "all 0.2s"
               }}
             >
               UKR
@@ -479,373 +554,552 @@ function FormGuideContent() {
           </div>
         </header>
 
-        <main style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        {/* Progress Bar */}
+        <div style={{ marginBottom: "2rem", padding: "0 4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
+            <span style={{ color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.stepLabel}</span>
+            <span>{Math.round((currentStep / 6) * 100)}%</span>
+          </div>
+          <div style={{ height: "6px", background: "rgba(255,255,255,0.05)", borderRadius: "100px", overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "linear-gradient(90deg, #6c63ff 0%, #3b82f6 100%)", width: `${(currentStep / 6) * 100}%`, borderRadius: "100px", transition: "width 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }} />
+          </div>
+        </div>
 
-          {/* 1. UBICACIÓN */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 10px 0", color: "#f97316" }}>{t.q1Title}</h2>
-            <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8", marginBottom: "8px" }}>{t.q1Label}</label>
-            <select
-              value={ubicacionOption}
-              onChange={e => setUbicacionOption(e.target.value)}
-              style={{
-                width: "100%", padding: "10px", borderRadius: "8px", background: "#0f172a", border: "1px solid #334155", color: "white", fontSize: "0.9rem"
-              }}
-            >
-              <option value="">-- Selecciona --</option>
-              {config.ubicacion?.options?.map((opt: any, i: number) => (
-                <option key={i} value={opt.es}>
-                  {lang === "es" ? opt.es : opt.uk}
-                </option>
-              ))}
-            </select>
-
-            {(ubicacionOption === "Otros (introducir manualmente)" || ubicacionOption === "Otros" || ubicacionOption.startsWith("Otros")) && (
-              <div style={{ marginTop: "10px" }}>
-                <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8", marginBottom: "6px" }}>{t.q1WriteOther}</label>
-                <input 
-                  type="text"
-                  value={ubicacionOtros}
-                  onChange={e => setUbicacionOtros(e.target.value)}
-                  placeholder="Ej: Fachada exterior..."
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", background: "#0f172a", border: "1px solid #334155", color: "white", fontSize: "0.9rem" }}
-                />
-              </div>
-            )}
-          </section>
-
-          {/* 2. DAÑOS */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 10px 0", color: "#f97316" }}>{t.q2Title}</h2>
+        {/* Steps container */}
+        <main style={{ minHeight: "330px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          
+          <div className="animate-step" style={{ 
+            background: "rgba(30, 41, 59, 0.45)", 
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)", 
+            borderRadius: "24px", 
+            padding: "2rem", 
+            boxShadow: "0 20px 40px -15px rgba(0,0,0,0.6)", 
+            marginBottom: "1.5rem" 
+          }}>
             
-            <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-              <button 
-                type="button" 
-                onClick={() => setTieneDanos(true)}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: tieneDanos === true ? "#ef4444" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.yes}
-              </button>
-              <button 
-                type="button" 
-                onClick={() => {
-                  setTieneDanos(false);
-                  // Reset checkboxes
-                  setDanosChecked({
-                    tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false
-                  });
-                }}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: tieneDanos === false ? "#10b981" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.no}
-              </button>
-            </div>
-
-            {tieneDanos === true && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "#0f172a", padding: "10px", borderRadius: "8px", border: "1px solid #334155" }}>
-                <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: 600 }}>{t.danosLabel}</span>
+            {/* STEP 1: UBICACIÓN */}
+            {currentStep === 1 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q1Title}</h2>
+                <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0" }}>{t.q1Label}</p>
                 
-                {(Object.keys(danosChecked) as DamageKey[]).map((key) => (
-                  <label key={key} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.85rem" }}>
-                    <input 
-                      type="checkbox"
-                      checked={danosChecked[key]}
-                      onChange={e => setDanosChecked({ ...danosChecked, [key]: e.target.checked })}
-                      style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
-                    />
-                    <span>{t.danosOptions[key]}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </section>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {config.ubicacion?.options?.map((opt: any, i: number) => {
+                    const isSelected = ubicacionOption === opt.es;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setUbicacionOption(opt.es);
+                          if (!ubiRequiresInput(opt.es)) {
+                            setUbicacionOtros("");
+                            setCurrentStep(2);
+                          }
+                        }}
+                        style={{
+                          textAlign: "left", padding: "14px 18px", borderRadius: "14px", 
+                          border: isSelected ? "2px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
+                          background: isSelected ? "rgba(59, 130, 246, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                          color: isSelected ? "#60a5fa" : "#f1f5f9", 
+                          cursor: "pointer", fontWeight: 600, fontSize: "0.88rem"
+                        }}
+                        className={!isSelected ? "survey-btn-option" : ""}
+                      >
+                        {lang === "es" ? opt.es : opt.uk}
+                      </button>
+                    );
+                  })}
+                </div>
 
-          {/* 3. LLAVES */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 10px 0", color: "#f97316" }}>{t.q3Title}</h2>
-            
-            <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-              <button 
-                type="button" 
-                onClick={() => setRequiereLlaves(true)}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: requiereLlaves === true ? "#f59e0b" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.yes}
-              </button>
-              <button 
-                type="button" 
-                onClick={() => { setRequiereLlaves(false); setLlavesOption(""); setLlavesContacto(""); }}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: requiereLlaves === false ? "#10b981" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.no}
-              </button>
-            </div>
-
-            {requiereLlaves === true && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "#0f172a", padding: "12px", borderRadius: "8px", border: "1px solid #334155" }}>
-                <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8" }}>{t.llavesLabel}</label>
-                <select
-                  value={llavesOption}
-                  onChange={e => {
-                    setLlavesOption(e.target.value);
-                    if (e.target.value === "No tengo ningún dato") setLlavesContacto("");
-                  }}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", background: "#1e293b", border: "1px solid #334155", color: "white" }}
-                >
-                  <option value="">-- Selecciona --</option>
-                  <option value="Nombre del presidente/conserje">{t.llavesOptions.conserje}</option>
-                  <option value="Número de teléfono">{t.llavesOptions.tel}</option>
-                  <option value="No tengo ningún dato">{t.llavesOptions.nodata}</option>
-                </select>
-
-                {llavesOption && llavesOption !== "No tengo ningún dato" && (
-                  <div style={{ marginTop: "6px" }}>
-                    <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8", marginBottom: "4px" }}>{t.llavesInput}</label>
+                {ubicacionOption && ubiRequiresInput(ubicacionOption) && (
+                  <div style={{ marginTop: "20px", animation: "slideIn 0.25s ease-out" }}>
+                    <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "8px", fontWeight: 600 }}>{t.q1WriteOther}</label>
                     <input 
                       type="text"
-                      value={llavesContacto}
-                      onChange={e => setLlavesContacto(e.target.value)}
-                      placeholder={llavesOption === "Número de teléfono" ? "Ej: 666777888" : "Ej: Conserje Juan"}
-                      style={{ width: "100%", padding: "10px", borderRadius: "6px", background: "#1e293b", border: "1px solid #334155", color: "white", fontSize: "0.9rem" }}
+                      value={ubicacionOtros}
+                      onChange={e => setUbicacionOtros(e.target.value)}
+                      placeholder="Ej: Planta 3, puerta A..."
+                      className="survey-input"
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.9rem" }}
                     />
                   </div>
                 )}
               </div>
             )}
-          </section>
 
-          {/* 4. SEÑAL SPLITTERS */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 4px 0", color: "#f97316" }}>{t.q4Title}</h2>
-            <span style={{ display: "block", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "12px" }}>{t.q4Help}</span>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
-              {splitters.map((s, idx) => (
-                <div key={idx} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.85rem", width: "80px", fontWeight: 700 }}>{t.splitterNum} {idx + 1}:</span>
-                  <div style={{ position: "relative", flex: 1 }}>
-                    <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: 700 }}>-</span>
-                    <input 
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={s.signal}
-                      onChange={e => updateSplitterSignal(idx, e.target.value)}
-                      placeholder="22.15"
-                      style={{ width: "100%", padding: "10px 10px 10px 22px", borderRadius: "8px", background: "#0f172a", border: "1px solid #334155", color: "white", fontSize: "0.9rem" }}
-                    />
-                  </div>
+            {/* STEP 2: DAÑOS */}
+            {currentStep === 2 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q2Title}</h2>
+                
+                <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
                   <button 
                     type="button" 
-                    onClick={() => removeSplitter(idx)}
-                    disabled={splitters.length <= 1}
-                    style={{ background: "#ef4444", color: "white", border: "none", borderRadius: "8px", width: "36px", height: "36px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: splitters.length <= 1 ? 0.4 : 1 }}
+                    onClick={() => setTieneDanos(true)}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: tieneDanos === true ? "2px solid #ef4444" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: tieneDanos === true ? "rgba(239, 68, 68, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: tieneDanos === true ? "#f87171" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={tieneDanos !== true ? "survey-btn-option" : ""}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
+                    {t.yes}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setTieneDanos(false);
+                      setDanosChecked({
+                        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false
+                      });
+                      setCurrentStep(3);
+                    }}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: tieneDanos === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: tieneDanos === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: tieneDanos === false ? "#34d399" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={tieneDanos !== false ? "survey-btn-option" : ""}
+                  >
+                    {t.no}
                   </button>
                 </div>
-              ))}
-            </div>
 
-            <button 
-              type="button"
-              onClick={addSplitter}
-              style={{
-                width: "100%", padding: "8px", borderRadius: "8px", border: "1px dashed #3b82f6", background: "rgba(59, 130, 246, 0.1)",
-                color: "#60a5fa", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem"
-              }}
-            >
-              {t.addSplitterBtn}
-            </button>
-          </section>
-
-          {/* 5. ANTALA */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 10px 0", color: "#f97316" }}>{t.q5Title}</h2>
-            
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button 
-                type="button" 
-                onClick={() => setRequiereAntala(true)}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: requiereAntala === true ? "var(--primary-color)" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.yes}
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setRequiereAntala(false)}
-                style={{
-                  flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #334155",
-                  background: requiereAntala === false ? "#10b981" : "#0f172a", color: "white", fontWeight: 700, cursor: "pointer"
-                }}
-              >
-                {t.no}
-              </button>
-            </div>
-          </section>
-
-          {/* 6. ÁREA DE INFLUENCIA */}
-          <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "1.25rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 10px 0", color: "#f97316" }}>{t.q6Title}</h2>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              
-              {/* Porterillo */}
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.9rem" }}>
-                <input 
-                  type="checkbox"
-                  checked={influenciaPorterillo}
-                  onChange={e => setInfluenciaPorterillo(e.target.checked)}
-                  style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)" }}
-                />
-                <span>{t.influenciaOptions.porterillo}</span>
-              </label>
-
-              {/* Calle */}
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.9rem" }}>
-                <input 
-                  type="checkbox"
-                  checked={influenciaCalle}
-                  onChange={e => setInfluenciaCalle(e.target.checked)}
-                  style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)" }}
-                />
-                <span>{t.influenciaOptions.calle}</span>
-              </label>
-
-              {influenciaCalle && (
-                <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px", marginLeft: "1.5rem" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.8rem", color: "#94a3b8", marginBottom: "4px" }}>{t.calleTipoLabel}</label>
-                    <select
-                      value={calleTipo}
-                      onChange={e => setCalleTipo(e.target.value)}
-                      style={{ width: "100%", padding: "6px", borderRadius: "4px", background: "#1e293b", border: "1px solid #334155", color: "white" }}
-                    >
-                      <option value="Calle">Calle</option>
-                      <option value="Avenida">Avenida</option>
-                      <option value="Plaza">Plaza</option>
-                      <option value="Pasaje">Pasaje</option>
-                      <option value="Carretera">Carretera</option>
-                    </select>
+                {tieneDanos === true && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "rgba(15, 23, 42, 0.3)", padding: "16px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.06)", animation: "slideIn 0.25s ease-out" }}>
+                    <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{t.danosLabel}</span>
+                    
+                    {(Object.keys(danosChecked) as DamageKey[]).map((key) => (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.88rem", padding: "4px 0" }}>
+                        <input 
+                          type="checkbox"
+                          checked={danosChecked[key]}
+                          onChange={e => setDanosChecked({ ...danosChecked, [key]: e.target.checked })}
+                          style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
+                        />
+                        <span style={{ color: "#e2e8f0" }}>{t.danosOptions[key]}</span>
+                      </label>
+                    ))}
                   </div>
+                )}
+              </div>
+            )}
 
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.8rem", color: "#94a3b8", marginBottom: "6px" }}>{t.calleNumerosLabel}</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {calleNumeros.map((num, idx) => (
-                        <div key={idx} style={{ display: "flex", gap: "6px" }}>
+            {/* STEP 3: LLAVES */}
+            {currentStep === 3 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q3Title}</h2>
+                
+                <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setRequiereLlaves(true)}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: requiereLlaves === true ? "2px solid #f59e0b" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: requiereLlaves === true ? "rgba(245, 158, 11, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: requiereLlaves === true ? "#fbbf24" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={requiereLlaves !== true ? "survey-btn-option" : ""}
+                  >
+                    {t.yes}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      setRequiereLlaves(false); 
+                      setLlavesNombre(""); 
+                      setLlavesTelefono(""); 
+                      setLlavesNoDatos(false);
+                      setCurrentStep(4);
+                    }}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: requiereLlaves === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: requiereLlaves === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: requiereLlaves === false ? "#34d399" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={requiereLlaves !== false ? "survey-btn-option" : ""}
+                  >
+                    {t.no}
+                  </button>
+                </div>
+
+                {requiereLlaves === true && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", background: "rgba(15, 23, 42, 0.3)", padding: "18px", borderRadius: "16px", border: "1px solid rgba(255, 255, 255, 0.06)", animation: "slideIn 0.25s ease-out" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.llavesName}</label>
+                      <input 
+                        type="text"
+                        value={llavesNombre}
+                        onChange={e => {
+                          setLlavesNombre(e.target.value);
+                          if (e.target.value.trim()) setLlavesNoDatos(false);
+                        }}
+                        placeholder="Ej: Conserje Pedro"
+                        disabled={llavesNoDatos}
+                        className="survey-input"
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.88rem" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.llavesPhone}</label>
+                      <input 
+                        type="text"
+                        value={llavesTelefono}
+                        onChange={e => {
+                          setLlavesTelefono(e.target.value);
+                          if (e.target.value.trim()) setLlavesNoDatos(false);
+                        }}
+                        placeholder="Ej: 666777888"
+                        disabled={llavesNoDatos}
+                        className="survey-input"
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "rgba(30, 41, 59, 0.3)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.88rem" }}
+                      />
+                    </div>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.82rem", color: "#64748b", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "12px", marginTop: "4px", fontWeight: 600 }}>
+                      <input 
+                        type="checkbox"
+                        checked={llavesNoDatos}
+                        onChange={e => {
+                          setLlavesNoDatos(e.target.checked);
+                          if (e.target.checked) {
+                            setLlavesNombre("");
+                            setLlavesTelefono("");
+                          }
+                        }}
+                        style={{ width: "16px", height: "16px", accentColor: "#f59e0b" }}
+                      />
+                      <span>{t.llavesCheckbox}</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 4: SPLITTERS */}
+            {currentStep === 4 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q4Title}</h2>
+                <p style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "20px" }}>{t.q4Help}</p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+                  {splitters.map((s, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.85rem", width: "75px", fontWeight: 700, color: "#94a3b8" }}>{t.splitterNum} {idx + 1}:</span>
+                      <div style={{ position: "relative", flex: 1 }}>
+                        <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: 700 }}>-</span>
+                        <input 
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={s.signal}
+                          onChange={e => updateSplitterSignal(idx, e.target.value)}
+                          placeholder="22.15"
+                          className="survey-input"
+                          style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.9rem" }}
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => removeSplitter(idx)}
+                        disabled={splitters.length <= 1}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: "10px", width: "38px", height: "38px", cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center", opacity: splitters.length <= 1 ? 0.3 : 1, transition: "all 0.2s"
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={addSplitter}
+                  style={{
+                    width: "100%", padding: "10px", borderRadius: "10px", border: "1px dashed rgba(59, 130, 246, 0.4)", background: "rgba(59, 130, 246, 0.06)",
+                    color: "#60a5fa", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", transition: "all 0.2s"
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "rgba(59, 130, 246, 0.06)"}
+                >
+                  ➕ {t.addSplitterBtn}
+                </button>
+              </div>
+            )}
+
+            {/* STEP 5: ANTALA */}
+            {currentStep === 5 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q5Title}</h2>
+                
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setRequiereAntala(true);
+                      setCurrentStep(6);
+                    }}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: requiereAntala === true ? "2px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: requiereAntala === true ? "rgba(59, 130, 246, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: requiereAntala === true ? "#60a5fa" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={requiereAntala !== true ? "survey-btn-option" : ""}
+                  >
+                    {t.yes}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setRequiereAntala(false);
+                      setCurrentStep(6);
+                    }}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: "14px", 
+                      border: requiereAntala === false ? "2px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                      background: requiereAntala === false ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.3)", 
+                      color: requiereAntala === false ? "#34d399" : "#f1f5f9", 
+                      fontWeight: 700, cursor: "pointer", fontSize: "0.9rem"
+                    }}
+                    className={requiereAntala !== false ? "survey-btn-option" : ""}
+                  >
+                    {t.no}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 6: ÁREA DE INFLUENCIA */}
+            {currentStep === 6 && (
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "#ffffff", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  
+                  {/* Porterillo */}
+                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
+                    <input 
+                      type="checkbox"
+                      checked={influenciaPorterillo}
+                      onChange={e => setInfluenciaPorterillo(e.target.checked)}
+                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                    />
+                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.porterillo}</span>
+                  </label>
+
+                  {/* Calle */}
+                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
+                    <input 
+                      type="checkbox"
+                      checked={influenciaCalle}
+                      onChange={e => setInfluenciaCalle(e.target.checked)}
+                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                    />
+                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.calle}</span>
+                  </label>
+
+                  {influenciaCalle && (
+                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid rgba(255, 255, 255, 0.06)", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
+                      
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <div style={{ width: "120px" }}>
+                          <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>{t.calleTipoLabel}</label>
+                          <select
+                            value={calleTipo}
+                            onChange={e => setCalleTipo(e.target.value)}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.85rem", outline: "none" }}
+                          >
+                            <option value="Calle">Calle</option>
+                            <option value="Avenida">Avenida</option>
+                            <option value="Plaza">Plaza</option>
+                            <option value="Pasaje">Pasaje</option>
+                            <option value="Carretera">Carretera</option>
+                          </select>
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>{t.calleNombreLabel}</label>
                           <input 
                             type="text"
-                            value={num}
-                            onChange={e => updateCalleNumero(idx, e.target.value)}
-                            placeholder="Ej: 14"
-                            style={{ flex: 1, padding: "6px", borderRadius: "4px", background: "#1e293b", border: "1px solid #334155", color: "white" }}
+                            value={calleNombre}
+                            onChange={e => setCalleNombre(e.target.value)}
+                            placeholder="Ej: de Andalucía"
+                            className="survey-input"
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", fontSize: "0.85rem" }}
                           />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.calleNumerosLabel}</label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                          {calleNumeros.map((num, idx) => (
+                            <div key={idx} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                              <input 
+                                type="text"
+                                value={num}
+                                onChange={e => updateCalleNumero(idx, e.target.value)}
+                                placeholder="14"
+                                className="survey-input"
+                                style={{ width: "55px", padding: "6px 8px", borderRadius: "6px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", textAlign: "center", fontSize: "0.82rem" }}
+                              />
+                              <button 
+                                type="button"
+                                onClick={() => removeCalleNumero(idx)}
+                                disabled={calleNumeros.length <= 1}
+                                style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "none", borderRadius: "6px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem", opacity: calleNumeros.length <= 1 ? 0.3 : 1 }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          
                           <button 
-                            type="button"
-                            onClick={() => removeCalleNumero(idx)}
-                            disabled={calleNumeros.length <= 1}
-                            style={{ background: "#ef4444", color: "white", border: "none", borderRadius: "4px", padding: "0 8px" }}
+                            type="button" 
+                            onClick={addCalleNumero}
+                            style={{
+                              padding: "4px 10px", background: "none", border: "1px dashed rgba(59, 130, 246, 0.4)", color: "#60a5fa",
+                              borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer"
+                            }}
                           >
-                            ✕
+                            ➕ {t.addCalleNumBtn}
                           </button>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={addCalleNumero}
-                      style={{
-                        marginTop: "8px", padding: "4px 8px", background: "none", border: "1px dashed #3b82f6", color: "#60a5fa",
-                        borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer"
-                      }}
-                    >
-                      {t.addCalleNumBtn}
-                    </button>
-                  </div>
+                  )}
+
+                  {/* Otros */}
+                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
+                    <input 
+                      type="checkbox"
+                      checked={influenciaOtros}
+                      onChange={e => setInfluenciaOtros(e.target.checked)}
+                      style={{ width: "18px", height: "18px", accentColor: "#3b82f6" }}
+                    />
+                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{t.influenciaOptions.otros}</span>
+                  </label>
+
+                  {influenciaOtros && (
+                    <div style={{ marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
+                      <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.influenciaOtrosLabel}</label>
+                      <textarea 
+                        value={influenciaOtrosTexto}
+                        onChange={e => setInfluenciaOtrosTexto(e.target.value)}
+                        placeholder="Especifica otros detalles..."
+                        rows={2}
+                        className="survey-input"
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "rgba(15, 23, 42, 0.4)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "white", resize: "vertical", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                  )}
+
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Otros */}
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.9rem" }}>
-                <input 
-                  type="checkbox"
-                  checked={influenciaOtros}
-                  onChange={e => setInfluenciaOtros(e.target.checked)}
-                  style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)" }}
-                />
-                <span>{t.influenciaOptions.otros}</span>
-              </label>
+          </div>
 
-              {influenciaOtros && (
-                <div style={{ marginLeft: "1.5rem" }}>
-                  <label style={{ display: "block", fontSize: "0.8rem", color: "#94a3b8", marginBottom: "4px" }}>{t.influenciaOtrosLabel}</label>
-                  <textarea 
-                    value={influenciaOtrosTexto}
-                    onChange={e => setInfluenciaOtrosTexto(e.target.value)}
-                    placeholder="Escribe otros detalles..."
-                    rows={2}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", background: "#0f172a", border: "1px solid #334155", color: "white", resize: "vertical" }}
-                  />
-                </div>
-              )}
+          {/* Survey Navigation Buttons */}
+          <div style={{ display: "flex", gap: "12px", marginTop: "0.5rem" }}>
+            
+            {/* Botón Atrás */}
+            {currentStep > 1 && (
+              <button
+                type="button"
+                onClick={prevStep}
+                style={{
+                  flex: 1, padding: "12px 18px", borderRadius: "12px", background: "rgba(255, 255, 255, 0.06)", color: "#e2e8f0",
+                  border: "1px solid rgba(255, 255, 255, 0.08)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem", transition: "all 0.2s"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"}
+              >
+                {t.back}
+              </button>
+            )}
 
-            </div>
-          </section>
+            {/* Botón Saltar */}
+            <button
+              type="button"
+              onClick={skipStep}
+              style={{
+                flex: 1, padding: "12px 18px", borderRadius: "12px", background: "transparent", color: "#64748b",
+                border: "1px solid rgba(255,255,255,0.05)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem", transition: "all 0.2s"
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = "#94a3b8"}
+              onMouseLeave={e => e.currentTarget.style.color = "#64748b"}
+            >
+              {t.skip}
+            </button>
 
-          {/* BOTÓN ENVIAR */}
-          <button
-            type="button"
-            onClick={handleSaveAndShow}
-            className="btn btn-primary"
-            style={{
-              width: "100%", minHeight: "50px", fontSize: "1.1rem", fontWeight: 800, justifyContent: "center",
-              boxShadow: "0 4px 15px rgba(249, 115, 22, 0.4)", borderRadius: "12px", marginTop: "1rem"
-            }}
-          >
-            {t.submitBtn}
-          </button>
+            {/* Botón Siguiente / Enviar */}
+            {currentStep < 6 ? (
+              <button
+                type="button"
+                onClick={nextStep}
+                className="btn btn-primary"
+                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700, fontSize: "0.88rem", minHeight: "44px", borderRadius: "12px" }}
+              >
+                {t.next}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSaveAndShow}
+                className="btn btn-primary"
+                style={{
+                  flex: 1.5, justifyContent: "center", fontWeight: 800, fontSize: "0.88rem", minHeight: "44px", borderRadius: "12px",
+                  boxShadow: "0 0 20px rgba(59, 130, 246, 0.35)", background: "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)"
+                }}
+              >
+                {t.submitBtn}
+              </button>
+            )}
+
+          </div>
 
         </main>
       </div>
 
-      {/* MODAL RESULTADOS */}
+      {/* RESULT MODAL (COPY COMMENT) */}
       {showResultModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div className="glass-panel" style={{ width: "95%", maxWidth: "500px", padding: "1.5rem", background: "#1e293b", border: "1px solid #334155", borderRadius: "16px", color: "white" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5, 8, 16, 0.9)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+          <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "rgba(30, 41, 59, 0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "24px", color: "white", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)" }}>
             
-            <h3 style={{ margin: "0 0 10px 0", fontSize: "1.2rem", fontWeight: 800, color: "#10b981" }}>
+            <h3 style={{ margin: "0 0 10px 0", fontSize: "1.25rem", fontWeight: 800, color: "#34d399", letterSpacing: "-0.02em" }}>
               {saving ? "Guardando formulario..." : "¡Comentario Generado y Guardado!"}
             </h3>
-            <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "0 0 15px 0" }}>
+            <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0", lineHeight: "1.5" }}>
               El cuestionario ha sido registrado en la CTO {ctoNum} y se ha guardado el comentario en el muro. Puedes copiar el texto generado para compartirlo:
             </p>
 
             <textarea 
               readOnly
               value={generatedComment}
-              rows={10}
+              rows={8}
               style={{
-                width: "100%", padding: "10px", background: "#0f172a", border: "1px solid #334155", borderRadius: "8px",
-                color: "white", fontFamily: "monospace", fontSize: "0.82rem", resize: "none", marginBottom: "15px"
+                width: "100%", padding: "12px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "12px",
+                color: "#e2e8f0", fontFamily: "monospace", fontSize: "0.82rem", resize: "none", marginBottom: "20px", outline: "none"
               }}
             />
 
@@ -853,17 +1107,17 @@ function FormGuideContent() {
               <button
                 onClick={copyToClipboard}
                 className="btn btn-primary"
-                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700 }}
+                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700, borderRadius: "12px", background: "linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%)" }}
               >
                 Copiar Comentario
               </button>
               <button
                 onClick={() => {
                   setShowResultModal(false);
-                  window.close(); // Close tab
+                  window.close();
                 }}
                 className="btn"
-                style={{ flex: 1, background: "#334155", color: "white", border: "none", justifyContent: "center", fontWeight: 700 }}
+                style={{ flex: 1, background: "rgba(255, 255, 255, 0.06)", color: "white", border: "1px solid rgba(255, 255, 255, 0.08)", justifyContent: "center", fontWeight: 700, borderRadius: "12px" }}
               >
                 Cerrar pestaña
               </button>
