@@ -20,13 +20,32 @@ function generatePdfBuffer(doc: any): Promise<Buffer> {
 }
 
 // Función común para recolectar datos del día en Madrid
-async function getDailySummaryData() {
-  const todayMadridStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
-  const startOfRange = new Date();
-  startOfRange.setDate(startOfRange.getDate() - 2);
+async function getDailySummaryData(dateParam: string | null = null) {
+  let targetDateStr = "";
+  let startOfRange = new Date();
+
+  if (dateParam) {
+    const [y, m, d] = dateParam.split("-");
+    const dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 12, 0, 0);
+    targetDateStr = dObj.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+
+    startOfRange = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 0, 0, 0);
+    startOfRange.setDate(startOfRange.getDate() - 1);
+  } else {
+    targetDateStr = new Date().toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+    startOfRange.setDate(startOfRange.getDate() - 2);
+  }
+
+  const endOfRange = new Date(startOfRange);
+  endOfRange.setDate(endOfRange.getDate() + 3);
 
   const historyLogs = await prisma.history.findMany({
-    where: { timestamp: { gte: startOfRange } },
+    where: {
+      timestamp: {
+        gte: startOfRange,
+        lte: endOfRange
+      }
+    },
     include: {
       cto: {
         include: {
@@ -44,7 +63,7 @@ async function getDailySummaryData() {
 
   for (const log of historyLogs) {
     const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
-    if (recordMadridStr !== todayMadridStr) continue;
+    if (recordMadridStr !== targetDateStr) continue;
 
     const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
 
@@ -75,7 +94,7 @@ async function getDailySummaryData() {
   }
 
   return {
-    date: todayMadridStr,
+    date: targetDateStr,
     ctos: Array.from(auditedTodayMap.values()).sort((a, b) => a.timestamp - b.timestamp)
   };
 }
@@ -185,8 +204,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type"); // "excel" o "pdf"
+    const dateParam = searchParams.get("date"); // e.g. "2026-06-28"
 
-    const data = await getDailySummaryData();
+    const data = await getDailySummaryData(dateParam);
 
     if (type === "pdf") {
       const buffer = await buildPdfBuffer(data.ctos, data.date);
@@ -221,6 +241,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    let dateParam = null;
+    try {
+      const body = await req.json();
+      dateParam = body.date;
+    } catch (e) {}
+
+    if (!dateParam) {
+      const { searchParams } = new URL(req.url);
+      dateParam = searchParams.get("date");
+    }
+
     // 1. Cargar configuraciones SMTP
     const settings = await prisma.setting.findMany();
     const config: Record<string, string> = {};
@@ -240,7 +271,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Obtener datos y generar adjuntos
-    const data = await getDailySummaryData();
+    const data = await getDailySummaryData(dateParam);
     const excelBuffer = buildExcelBuffer(data.ctos, data.date);
     const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
 

@@ -15,6 +15,20 @@ interface CtoReport {
 }
 
 export default function DailySummaryPage() {
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  });
+
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<{ date: string; count: number; ctos: CtoReport[] }>({
     date: "",
@@ -39,7 +53,7 @@ export default function DailySummaryPage() {
   async function loadData() {
     try {
       const [resSummary, resSettings] = await Promise.all([
-        fetch("/api/admin/daily-summary"),
+        fetch(`/api/admin/daily-summary?date=${selectedDate}`),
         fetch("/api/admin/email-settings")
       ]);
 
@@ -67,7 +81,7 @@ export default function DailySummaryPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedDate]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +123,11 @@ export default function DailySummaryPage() {
     }
     setSendingTest(true);
     try {
-      const res = await fetch("/api/admin/daily-summary/export", { method: "POST" });
+      const res = await fetch("/api/admin/daily-summary/export", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate })
+      });
       const data = await res.json();
       if (res.ok) {
         alert(data.message || "Correo de prueba enviado con éxito.");
@@ -134,12 +152,31 @@ export default function DailySummaryPage() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto", color: "var(--text-color)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 700 }}>Resumen Diario de Auditoría</h1>
-          <p style={{ fontSize: "0.88rem", color: "#64748b", margin: "4px 0 0 0" }}>Fecha: <strong>{summary.date}</strong> (Horario Madrid)</p>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 700 }}>Resumen de Auditoría</h1>
+          <p style={{ fontSize: "0.88rem", color: "#64748b", margin: "4px 0 0 0" }}>Fecha reportada: <strong>{summary.date}</strong></p>
         </div>
-        <Link href="/admin" className="btn btn-primary">Volver al Panel</Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>Elegir Día:</span>
+            <input 
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="input-field"
+              style={{
+                padding: "6px 12px",
+                minHeight: "36px",
+                background: "var(--bg-color)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "6px"
+              }}
+            />
+          </div>
+          <Link href="/admin" className="btn btn-primary">Volver al Panel</Link>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
@@ -148,13 +185,13 @@ export default function DailySummaryPage() {
         <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
-              CTOs Auditadas Hoy ({summary.count})
+              CTOs Auditadas ({summary.count})
             </h2>
             <div style={{ display: "flex", gap: "8px" }}>
-              <a href="/api/admin/daily-summary/export?type=excel" className="btn" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "6px 12px", fontSize: "0.85rem", gap: "6px" }}>
+              <a href={`/api/admin/daily-summary/export?type=excel&date=${selectedDate}`} className="btn" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "6px 12px", fontSize: "0.85rem", gap: "6px" }}>
                 📊 Descargar Excel
               </a>
-              <a href="/api/admin/daily-summary/export?type=pdf" className="btn" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "6px 12px", fontSize: "0.85rem", gap: "6px" }}>
+              <a href={`/api/admin/daily-summary/export?type=pdf&date=${selectedDate}`} className="btn" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "6px 12px", fontSize: "0.85rem", gap: "6px" }}>
                 📄 Descargar PDF
               </a>
             </div>
