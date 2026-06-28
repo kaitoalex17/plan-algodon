@@ -149,7 +149,10 @@ export default function DailySummaryPage() {
       if (res.ok) {
         alert(data.message || "Correo de prueba enviado con éxito.");
       } else {
-        alert(data.error || "Error al enviar el correo de prueba.");
+        let msg = data.error || "Error al enviar el correo de prueba.";
+        if (data.hint) msg += "\n\n💡 Pista: " + data.hint;
+        if (data.code) msg += "\n\nCódigo: " + data.code;
+        alert(msg);
       }
     } catch (err) {
       console.error(err);
@@ -179,7 +182,10 @@ export default function DailySummaryPage() {
       if (res.ok) {
         alert(data.message || "Reporte diario enviado correctamente.");
       } else {
-        alert(data.error || "Error al enviar el reporte.");
+        let msg = data.error || "Error al enviar el reporte.";
+        if (data.hint) msg += "\n\n💡 Pista: " + data.hint;
+        if (data.code) msg += "\n\nCódigo: " + data.code;
+        alert(msg);
       }
     } catch (err) {
       console.error(err);

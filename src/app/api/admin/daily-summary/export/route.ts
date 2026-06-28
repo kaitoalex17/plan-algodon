@@ -373,19 +373,32 @@ export async function POST(req: NextRequest) {
     }
 
     // Crear transportador nodemailer
-    let transporter;
+    let transporter: any;
     if (emailMethod === "smtp") {
       if (!smtpHost || !smtpUser || !smtpPass) {
         return NextResponse.json({ error: "Configuración SMTP incompleta o vacía en la base de datos." }, { status: 400 });
       }
+
+      // Determinar si usar SSL directo (puerto 465) o STARTTLS (587/25)
+      const useSecure = smtpPort === 465 ? true : false;
+
       transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
-        secure: smtpSecure,
+        secure: useSecure,        // true solo para puerto 465 (SSL directo)
         auth: {
           user: smtpUser,
           pass: smtpPass
-        }
+        },
+        tls: {
+          // Brevo y algunos servidores usan certificados que pueden fallar la verificación estricta
+          rejectUnauthorized: false,
+          // Permitir versiones TLS antiguas si el servidor lo requiere
+          ciphers: "SSLv3"
+        },
+        connectionTimeout: 15000, // 15 segundos máximo de espera de conexión
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
       });
     } else {
       // Usar Sendmail local
@@ -396,11 +409,34 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Verificar la conexión antes de intentar enviar
+    if (emailMethod === "smtp") {
+      try {
+        await transporter.verify();
+        console.log("[Email] Conexión SMTP verificada correctamente.");
+      } catch (verifyErr: any) {
+        console.error("[Email] Fallo en la verificación SMTP:", verifyErr);
+        return NextResponse.json({
+          error: `Error de conexión SMTP: ${verifyErr.message}`,
+          details: {
+            host: smtpHost,
+            port: smtpPort,
+            user: smtpUser,
+            hint: smtpPort === 587
+              ? "Puerto 587 detectado: asegúrate de que 'Conexión Segura (SSL/TLS)' esté DESACTIVADA. Brevo usa STARTTLS en este puerto."
+              : smtpPort === 465
+              ? "Puerto 465 detectado: asegúrate de que 'Conexión Segura (SSL/TLS)' esté ACTIVADA."
+              : "Verifica los datos del servidor SMTP de Brevo: smtp-relay.brevo.com / puerto 587."
+          }
+        }, { status: 502 });
+      }
+    }
+
     const sender = emailMethod === "smtp" ? smtpUser : (smtpUser || "noreply@plan-algodon.com");
 
     // Si es un correo de prueba de conexión, enviar un texto simple sin adjuntos
     if (isTest) {
-      await transporter.sendMail({
+      const info = await transporter.sendMail({
         from: `"Plan Algodón (Prueba)" <${sender}>`,
         to: emailRecipients,
         subject: `Prueba de Conexión (${emailMethod.toUpperCase()}) - Plan Algodón`,
@@ -417,7 +453,8 @@ export async function POST(req: NextRequest) {
           </div>
         `
       });
-      return NextResponse.json({ success: true, message: `Correo de prueba (${emailMethod.toUpperCase()}) enviado correctamente a todos los destinatarios.` });
+      console.log("[Email] Correo de prueba enviado. MessageId:", info?.messageId);
+      return NextResponse.json({ success: true, message: `Correo de prueba (${emailMethod.toUpperCase()}) enviado correctamente a: ${emailRecipients}` });
     }
 
     // 2. Obtener datos y generar adjuntos
@@ -470,9 +507,23 @@ export async function POST(req: NextRequest) {
       ]
     });
 
-    return NextResponse.json({ success: true, message: `Correo resumen (${emailMethod.toUpperCase()}) enviado correctamente a todos los destinatarios.` });
+    console.log("[Email] Reporte diario enviado correctamente a:", emailRecipients);
+    return NextResponse.json({ success: true, message: `Correo resumen (${emailMethod.toUpperCase()}) enviado correctamente a: ${emailRecipients}` });
   } catch (error: any) {
-    console.error("Error sending manual daily email summary:", error);
-    return NextResponse.json({ error: "Error al enviar el correo: " + error.message }, { status: 500 });
+    console.error("[Email] Error completo al enviar:", error);
+    // Proveer mensaje de error detallado con pistas específicas por código de error
+    let hint = "";
+    if (error.code === "ECONNREFUSED") hint = "El servidor SMTP rechazó la conexión. Verifica host y puerto.";
+    else if (error.code === "ETIMEDOUT") hint = "Tiempo de espera agotado. El servidor no responde. Verifica host, puerto o firewall.";
+    else if (error.code === "EAUTH") hint = "Autenticación fallida. Verifica usuario y contraseña SMTP de Brevo.";
+    else if (error.responseCode === 535) hint = "Credenciales incorrectas (535). En Brevo, el 'usuario' es tu correo de cuenta y la 'contraseña' es la SMTP Key de Brevo (no tu contraseña de login).";
+    else if (error.responseCode === 550) hint = "El remitente (from) está bloqueado o no verificado en Brevo. Verifica que el dominio esté validado en tu cuenta de Brevo.";
+    else if (error.message?.includes("wrong version")) hint = "Error SSL. En el puerto 587, desactiva 'Conexión Segura (SSL/TLS)'. En el puerto 465, actívala.";
+    
+    return NextResponse.json({
+      error: "Error al enviar el correo: " + error.message,
+      hint: hint || undefined,
+      code: error.code || error.responseCode || undefined
+    }, { status: 500 });
   }
 }
