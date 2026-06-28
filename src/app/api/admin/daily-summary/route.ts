@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     let targetDateStr = "";
     let startOfRange = new Date();
 
-    if (dateParam) {
+    if (dateParam && dateParam !== "null" && dateParam !== "undefined" && dateParam.includes("-")) {
       const [y, m, d] = dateParam.split("-");
       const dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 12, 0, 0);
       targetDateStr = dObj.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
@@ -59,7 +59,6 @@ export async function GET(req: NextRequest) {
       if (recordMadridStr !== targetDateStr) continue;
 
       // Verificar si es un cambio de estado auditado (CORRECTO o FALLO)
-      const isAuditAction = log.action.includes("Cambió estado") || log.action.includes("Formulario:") || log.action.includes("Requisitos de Auditoría");
       const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
 
       if (isCtoAuditedState && !auditedTodayMap.has(log.ctoId)) {
@@ -81,7 +80,7 @@ export async function GET(req: NextRequest) {
           lat: log.cto.lat,
           lng: log.cto.lng,
           coordenadas: log.cto.coordenadas,
-          auditor: log.cto.auditedBy?.name || log.user.name || log.user.email,
+          auditor: log.cto.auditedBy?.name || log.user?.name || log.user?.email || "Sistema",
           auditTime,
           timestamp: log.timestamp.getTime()
         });

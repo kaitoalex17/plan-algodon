@@ -46,7 +46,7 @@ async function getDailySummaryData(dateParam: string | null = null) {
   let targetDateStr = "";
   let startOfRange = new Date();
 
-  if (dateParam) {
+  if (dateParam && dateParam !== "null" && dateParam !== "undefined" && dateParam.includes("-")) {
     const [y, m, d] = dateParam.split("-");
     const dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 12, 0, 0);
     targetDateStr = dObj.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
@@ -108,7 +108,7 @@ async function getDailySummaryData(dateParam: string | null = null) {
         lat: log.cto.lat,
         lng: log.cto.lng,
         coordenadas: log.cto.coordenadas,
-        auditor: log.cto.auditedBy?.name || log.user.name || log.user.email,
+        auditor: log.cto.auditedBy?.name || log.user?.name || log.user?.email || "Sistema",
         auditTime,
         timestamp: log.timestamp.getTime()
       });

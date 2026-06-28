@@ -86,7 +86,7 @@ async function getDailySummaryData(prisma: PrismaClient) {
         lat: log.cto.lat,
         lng: log.cto.lng,
         coordenadas: log.cto.coordenadas,
-        auditor: log.cto.auditedBy?.name || log.user.name || log.user.email,
+        auditor: log.cto.auditedBy?.name || log.user?.name || log.user?.email || "Sistema",
         auditTime,
         timestamp: log.timestamp.getTime()
       });
