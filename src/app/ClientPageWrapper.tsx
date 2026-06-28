@@ -444,6 +444,22 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón
           </h1>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {/* Botón Refrescar (🔄) */}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn" 
+              title="Actualizar Datos"
+              style={{ 
+                padding: "6px 8px", background: "var(--bg-color)", color: "var(--text-color)", 
+                minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
+                border: "1px solid var(--border-color)", borderRadius: "6px", cursor: "pointer" 
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.73-.72" />
+              </svg>
+            </button>
+
             {/* Botón Mi Perfil (👤 Iconoir Outline) */}
             <button 
               onClick={() => setShowSettingsModal(true)} 
@@ -1195,7 +1211,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               borderTop: "1px solid var(--border-color)",
               paddingTop: "12px"
             }}>
-              Plan Algodón - Versión 1.7.5
+              Plan Algodón - Versión 1.7.6
             </div>
           </div>
         </div>
