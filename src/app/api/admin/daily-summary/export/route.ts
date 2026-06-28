@@ -335,7 +335,9 @@ export async function POST(req: NextRequest) {
           </p>
           <p style="font-size: 0.85rem; color: #64748b;">* Contraseña de acceso predeterminada: <strong>netdata</strong> (o la configurada por el administrador).</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">Plan Algodón - Reportes Automatizados</p>
+          <div style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 0;">
+            ${config["email_footer"] || 'Plan Algodón - Reportes Automatizados'}
+          </div>
         </div>
       `,
       attachments: [

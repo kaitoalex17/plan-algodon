@@ -46,6 +46,7 @@ export default function DailySummaryPage() {
   const [emailScheduleHour, setEmailScheduleHour] = useState("20");
   const [emailScheduleEnabled, setEmailScheduleEnabled] = useState(false);
   const [publicReportPassword, setPublicReportPassword] = useState("netdata");
+  const [emailFooter, setEmailFooter] = useState("");
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -71,6 +72,7 @@ export default function DailySummaryPage() {
         setEmailScheduleHour(settings.emailScheduleHour || "20");
         setEmailScheduleEnabled(settings.emailScheduleEnabled || false);
         setPublicReportPassword(settings.publicReportPassword || "netdata");
+        setEmailFooter(settings.emailFooter || "");
       }
     } catch (err) {
       console.error("Error cargando resumen diario:", err);
@@ -99,7 +101,8 @@ export default function DailySummaryPage() {
           emailRecipients,
           emailScheduleHour: parseInt(emailScheduleHour),
           emailScheduleEnabled,
-          publicReportPassword
+          publicReportPassword,
+          emailFooter
         })
       });
       if (res.ok) {
@@ -362,6 +365,18 @@ export default function DailySummaryPage() {
                 className="input-field" 
                 placeholder="netdata"
                 style={{ padding: "8px 12px", minHeight: "38px" }}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 2" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Pie de Página del Correo (Soporta formato HTML: enlaces &lt;a&gt;, imágenes, etc.)</label>
+              <textarea
+                value={emailFooter}
+                onChange={e => setEmailFooter(e.target.value)}
+                className="input-field"
+                placeholder='Ejemplo: <p style="text-align: center;"><a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" width="120" /></a></p>'
+                rows={3}
+                style={{ padding: "8px 12px", minHeight: "80px", fontFamily: "monospace", width: "100%", background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "6px" }}
               />
             </div>
 
