@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
+import path from "path";
+import fs from "fs";
 
 // Helper para convertir flujo PDFKit a Buffer
 function generatePdfBuffer(doc: any): Promise<Buffer> {
@@ -101,6 +103,16 @@ function buildExcelBuffer(ctos: any[], dateStr: string): Buffer {
 // Función común para construir el buffer del PDF (PDFKit)
 async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   const doc = new PDFDocument({ margin: 40 });
+  
+  try {
+    const fontPath = path.join(process.cwd(), "src/assets/fonts/Roboto-Regular.ttf");
+    if (fs.existsSync(fontPath)) {
+      doc.registerFont("Roboto", fontPath);
+      doc.font("Roboto");
+    }
+  } catch (err) {
+    console.error("Error al registrar fuente Roboto:", err);
+  }
   
   // Título principal
   doc.fillColor("#1e293b").fontSize(20).text("Reporte Diario de Auditoría", { align: "center" });
