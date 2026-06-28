@@ -129,30 +129,6 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
   } catch (err) {
     console.error("Error al registrar fuente Roboto en scheduler:", err);
   }
-
-  // 1. Obtener mapa estático con pines
-  let mapBuffer: Buffer | null = null;
-  try {
-    const markers = ctos
-      .filter(c => c.lat && c.lng)
-      .slice(0, 30) // Limitar a 30 marcadores para evitar URLs excesivamente largas
-      .map(c => {
-        const color = c.status === "CORRECTO" ? "gn" : "rd"; // verde (green) o rojo (red)
-        return `${c.lng},${c.lat},pm2${color}m`;
-      })
-      .join("~");
-
-    if (markers) {
-      const staticMapUrl = `https://static-maps.yandex.ru/1.x/?l=map&size=600,350&pt=${markers}`;
-      const res = await fetch(staticMapUrl);
-      if (res.ok) {
-        const ab = await res.arrayBuffer();
-        mapBuffer = Buffer.from(ab);
-      }
-    }
-  } catch (err) {
-    console.error("Error cargando mapa estático Yandex:", err);
-  }
   
   // Título principal
   doc.fillColor("#1e293b").fontSize(20).text("Reporte Diario de Auditoría", { align: "center" });
@@ -179,7 +155,7 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
 
   for (const [techName, techCtos] of Object.entries(techGroups)) {
     // Si queda poco espacio al final de la página, saltar de página antes de pintar el técnico
-    if (doc.y > 620) {
+    if (doc.y > 600) {
       doc.addPage();
     }
 
@@ -233,23 +209,56 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
       
       doc.y = currentY + rowHeight;
     }
-    doc.y += 15; // Margen de separación entre técnicos
-  }
 
-  // 2. Adjuntar el mapa al final si se descargaron los datos
-  if (mapBuffer) {
-    doc.addPage();
-    doc.fillColor("#1e293b").fontSize(14).text("Mapa de Auditorías del Día", { align: "center" });
-    doc.fontSize(9).fillColor("#64748b").text("Marcadores en verde representan CTOs correctas y en rojo con fallos.", { align: "center" });
-    doc.moveDown(1.5);
+    // Obtener mapa estático de OpenStreetMap para este técnico
+    let techMapBuffer: Buffer | null = null;
     try {
-      doc.image(mapBuffer, {
-        fit: [500, 320],
-        align: "center"
-      });
+      const markers = techCtos
+        .filter(c => {
+          const lat = parseFloat(String(c.lat).replace(",", "."));
+          const lng = parseFloat(String(c.lng).replace(",", "."));
+          return !isNaN(lat) && !isNaN(lng);
+        })
+        .slice(0, 30)
+        .map(c => {
+          const lat = parseFloat(String(c.lat).replace(",", "."));
+          const lng = parseFloat(String(c.lng).replace(",", "."));
+          return `${lat},${lng},ol-marker`;
+        })
+        .join("|");
+
+      if (markers) {
+        const staticMapUrl = `https://staticmap.openstreetmap.de/staticmap.php?zoom=13&size=550x300&maptype=mapnik&markers=${markers}`;
+        const res = await fetch(staticMapUrl);
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          techMapBuffer = Buffer.from(ab);
+        }
+      }
     } catch (err) {
-      console.error("Error al incrustar imagen del mapa en PDFKit:", err);
+      console.error(`Error cargando mapa OpenStreetMap para ${techName}:`, err);
     }
+
+    if (techMapBuffer) {
+      if (doc.y > 450) {
+        doc.addPage();
+      } else {
+        doc.y += 10;
+      }
+
+      doc.fillColor("#1e293b").fontSize(10).text(`Ubicación de CTOs Auditadas - Técnico: ${techName}`, { align: "left" });
+      doc.moveDown(0.4);
+      try {
+        doc.image(techMapBuffer, {
+          fit: [480, 240],
+          align: "center"
+        });
+        doc.y += 250;
+      } catch (err) {
+        console.error("Error incrustando mapa de técnico:", err);
+      }
+    }
+    doc.y += 20; // Margen antes del siguiente técnico
   }
 
   return generatePdfBuffer(doc);

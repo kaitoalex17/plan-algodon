@@ -29,13 +29,40 @@ export default function PublicReportPage() {
     ctos: []
   });
 
-  // Intentar cargar la contraseña guardada en la sesión del navegador
+  // Intentar cargar token de la URL o la contraseña guardada en la sesión del navegador
   useEffect(() => {
-    const savedPass = localStorage.getItem("public_report_password");
-    if (savedPass) {
-      verifyPassword(savedPass);
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("token");
+    if (token) {
+      verifyToken(token);
+    } else {
+      const savedPass = localStorage.getItem("public_report_password");
+      if (savedPass) {
+        verifyPassword(savedPass);
+      }
     }
   }, []);
+
+  const verifyToken = async (tokenToVerify: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/public-report?token=${encodeURIComponent(tokenToVerify)}`);
+      if (res.ok) {
+        const payload = await res.json();
+        setData(payload);
+        setIsAuth(true);
+      } else {
+        setError("Enlace de acceso público caducado o inválido.");
+        setIsAuth(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Error en la conexión con el servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const verifyPassword = async (passToVerify: string) => {
     setLoading(true);

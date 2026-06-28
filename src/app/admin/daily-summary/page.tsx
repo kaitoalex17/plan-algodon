@@ -48,6 +48,9 @@ export default function DailySummaryPage() {
   const [publicReportPassword, setPublicReportPassword] = useState("netdata");
   const [emailFooter, setEmailFooter] = useState("");
   const [emailMethod, setEmailMethod] = useState("smtp");
+  const [publicAccessToken, setPublicAccessToken] = useState("");
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -75,6 +78,7 @@ export default function DailySummaryPage() {
         setPublicReportPassword(settings.publicReportPassword || "netdata");
         setEmailFooter(settings.emailFooter || "");
         setEmailMethod(settings.emailMethod || "smtp");
+        setPublicAccessToken(settings.publicAccessToken || "");
       }
     } catch (err) {
       console.error("Error cargando resumen diario:", err);
@@ -105,7 +109,8 @@ export default function DailySummaryPage() {
           emailScheduleEnabled,
           publicReportPassword,
           emailFooter,
-          emailMethod
+          emailMethod,
+          publicAccessToken
         })
       });
       if (res.ok) {
@@ -182,6 +187,95 @@ export default function DailySummaryPage() {
     } finally {
       setSendingManual(false);
     }
+  };
+
+  const handleGenerateToken = async () => {
+    setGeneratingToken(true);
+    try {
+      const newToken = crypto.randomUUID();
+      const res = await fetch("/api/admin/email-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
+          emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
+          emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod,
+          publicAccessToken: newToken
+        })
+      });
+      if (res.ok) {
+        setPublicAccessToken(newToken);
+        alert("Enlace público generado correctamente.");
+      } else {
+        alert("Error al guardar el token público.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor.");
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    if (!confirm("¿Estás seguro de que deseas eliminar el enlace público? Quien tenga el enlace ya no podrá acceder.")) return;
+    setGeneratingToken(true);
+    try {
+      const res = await fetch("/api/admin/email-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
+          emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
+          emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod,
+          publicAccessToken: ""
+        })
+      });
+      if (res.ok) {
+        setPublicAccessToken("");
+        alert("Enlace público revocado correctamente.");
+      } else {
+        alert("Error al revocar el enlace público.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor.");
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const getPublicLink = () => {
+    if (!publicAccessToken) return "";
+    return `${window.location.origin}/public-report?token=${publicAccessToken}`;
+  };
+
+  const getEmailPreviewHtml = () => {
+    const appUrl = window.location.origin;
+    const publicLink = publicAccessToken ? `${appUrl}/public-report?token=${publicAccessToken}` : `${appUrl}/public-report`;
+    const correctas = summary.ctos.filter(c => c.status === "CORRECTO").length;
+    const fallidas = summary.ctos.filter(c => c.status === "FALLO").length;
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #0f172a;">
+        <h2 style="color: #f97316; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-top: 0;">Plan Algodón - Reporte Diario</h2>
+        <p>Se ha generado el reporte de auditoría diario correspondiente al día <strong>${summary.date || selectedDate}</strong>.</p>
+        <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 4px 0;">📊 <strong>Resumen de actividad:</strong></p>
+          <p style="margin: 4px 0; padding-left: 15px;">• Total CTOs Auditadas hoy: <strong>${summary.count}</strong></p>
+          <p style="margin: 4px 0; padding-left: 15px;">• Correctas: <strong>${correctas}</strong></p>
+          <p style="margin: 4px 0; padding-left: 15px;">• Fallidas: <strong>${fallidas}</strong></p>
+        </div>
+        <p>Puedes acceder a la visualización del mapa y lista pública en tiempo real aquí:</p>
+        <p style="text-align: center; margin: 24px 0;">
+          <a href="${publicLink}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ver Reporte Interactivo</a>
+        </p>
+        <p style="font-size: 0.85rem; color: #64748b;">* ${publicAccessToken ? 'Este enlace es de acceso directo (sin contraseña).' : 'Contraseña de acceso predeterminada: <strong>netdata</strong>'}</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <div style="font-size: 0.8rem; color: #94a3b8; text-align: center;">
+          ${emailFooter || 'Plan Algodón - Reportes Automatizados'}
+        </div>
+      </div>
+    `;
   };
 
   if (loading) {
@@ -285,6 +379,110 @@ export default function DailySummaryPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Panel: Enlace Público de Acceso */}
+        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
+          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+            🔗 Enlace Público de Acceso Directo
+          </h2>
+          <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "1rem" }}>
+            Genera un enlace único que permite acceder al reporte público <strong>sin contraseña</strong>. 
+            Puedes incluirlo en el correo o compartirlo directamente. Elimínalo si ya no quieres que funcione.
+          </p>
+
+          {publicAccessToken ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={getPublicLink()}
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    fontSize: "0.78rem",
+                    fontFamily: "monospace",
+                    background: "var(--bg-color)",
+                    color: "var(--text-color)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "6px",
+                    minHeight: "38px"
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => { navigator.clipboard.writeText(getPublicLink()); alert("Enlace copiado al portapapeles."); }}
+                  style={{ padding: "8px 14px", background: "#0ea5e9", color: "white", border: "none", fontWeight: 700, borderRadius: "6px", whiteSpace: "nowrap" }}
+                >
+                  📋 Copiar
+                </button>
+                <a
+                  href={getPublicLink()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{ padding: "8px 14px", background: "#10b981", color: "white", border: "none", fontWeight: 700, borderRadius: "6px", textDecoration: "none", display: "flex", alignItems: "center" }}
+                >
+                  🌐 Abrir
+                </a>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleRevokeToken}
+                  disabled={generatingToken}
+                  style={{ padding: "8px 14px", background: "#ef4444", color: "white", border: "none", fontWeight: 700, borderRadius: "6px" }}
+                  title="Eliminar enlace público"
+                >
+                  🗑️
+                </button>
+              </div>
+              <p style={{ fontSize: "0.78rem", color: "#10b981", margin: 0 }}>✅ Enlace activo — cualquiera con esta URL puede acceder sin contraseña.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <p style={{ fontSize: "0.85rem", color: "#f59e0b", margin: 0 }}>⚠️ No hay ningún enlace público generado actualmente.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleGenerateToken}
+                disabled={generatingToken}
+                style={{ alignSelf: "flex-start", fontWeight: 700, padding: "10px 20px" }}
+              >
+                {generatingToken ? "Generando..." : "🔑 Generar Enlace Público"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Panel: Vista Previa del Correo */}
+        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEmailPreview ? "1rem" : 0 }}>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
+              👁️ Vista Previa del Correo
+            </h2>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowEmailPreview(v => !v)}
+              style={{ padding: "6px 16px", fontWeight: 700, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "6px" }}
+            >
+              {showEmailPreview ? "Ocultar" : "Ver Preview"}
+            </button>
+          </div>
+          {showEmailPreview && (
+            <div style={{ border: "1px solid var(--border-color)", borderRadius: "8px", overflow: "hidden", marginTop: "0.5rem" }}>
+              <div style={{ background: "#f1f5f9", padding: "8px 14px", fontSize: "0.78rem", color: "#64748b", borderBottom: "1px solid #e2e8f0" }}>
+                Vista previa del correo HTML que recibirán los destinatarios
+              </div>
+              <iframe
+                srcDoc={getEmailPreviewHtml()}
+                style={{ width: "100%", minHeight: "420px", border: "none", background: "#fff" }}
+                title="Vista previa del correo"
+              />
             </div>
           )}
         </div>

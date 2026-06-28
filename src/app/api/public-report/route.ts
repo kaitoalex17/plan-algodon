@@ -5,15 +5,31 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const password = searchParams.get("password");
+    const token = searchParams.get("token");
 
-    // 1. Obtener la contraseña de los ajustes o usar "netdata" por defecto
-    const savedPasswordSetting = await prisma.setting.findUnique({
-      where: { key: "public_report_password" }
-    });
-    const correctPassword = savedPasswordSetting?.value || "netdata";
+    let isAuthorized = false;
 
-    if (password !== correctPassword) {
-      return NextResponse.json({ error: "Contraseña incorrecta" }, { status: 401 });
+    if (token) {
+      const savedTokenSetting = await prisma.setting.findUnique({
+        where: { key: "public_access_token" }
+      });
+      if (savedTokenSetting && savedTokenSetting.value === token) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      const savedPasswordSetting = await prisma.setting.findUnique({
+        where: { key: "public_report_password" }
+      });
+      const correctPassword = savedPasswordSetting?.value || "netdata";
+      if (password === correctPassword) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: "Acceso denegado o token inválido" }, { status: 401 });
     }
 
     // 2. Obtener fecha de hoy en Madrid

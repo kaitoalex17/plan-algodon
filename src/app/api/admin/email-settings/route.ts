@@ -27,7 +27,8 @@ export async function GET() {
       emailScheduleEnabled: result["email_schedule_enabled"] === "true",
       publicReportPassword: result["public_report_password"] || "netdata",
       emailFooter: result["email_footer"] || "",
-      emailMethod: result["email_method"] || "smtp"
+      emailMethod: result["email_method"] || "smtp",
+      publicAccessToken: result["public_access_token"] || ""
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     const {
       smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass,
       emailRecipients, emailScheduleHour, emailScheduleEnabled, publicReportPassword,
-      emailFooter, emailMethod
+      emailFooter, emailMethod, publicAccessToken
     } = body;
 
     const data = [
@@ -59,7 +60,8 @@ export async function POST(req: NextRequest) {
       { key: "email_schedule_enabled", value: emailScheduleEnabled ? "true" : "false" },
       { key: "public_report_password", value: publicReportPassword || "netdata" },
       { key: "email_footer", value: emailFooter || "" },
-      { key: "email_method", value: emailMethod || "smtp" }
+      { key: "email_method", value: emailMethod || "smtp" },
+      { key: "public_access_token", value: publicAccessToken || "" }
     ];
 
     for (const item of data) {
