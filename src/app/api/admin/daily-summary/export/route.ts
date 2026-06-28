@@ -3,9 +3,32 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
-import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import { robotoBase64 } from "@/assets/fonts/robotoBase64";
+import fs from "fs";
+import { helveticaAfm } from "@/assets/fonts/helveticaAfm";
+
+// Interceptar lecturas de Helvetica.afm para evitar ENOENT en entornos standalone / Docker
+if (!(fs as any).__helvetica_patched) {
+  (fs as any).__helvetica_patched = true;
+  const originalReadFileSync = fs.readFileSync;
+  fs.readFileSync = function (path: any, options?: any) {
+    if (typeof path === "string" && path.includes("Helvetica.afm")) {
+      return options === "utf8" || (options && options.encoding === "utf8")
+        ? helveticaAfm
+        : Buffer.from(helveticaAfm, "utf8");
+    }
+    return originalReadFileSync.apply(this, arguments as any);
+  } as any;
+
+  const originalExistsSync = fs.existsSync;
+  fs.existsSync = function (path: any) {
+    if (typeof path === "string" && path.includes("Helvetica.afm")) {
+      return true;
+    }
+    return originalExistsSync.apply(this, arguments as any);
+  } as any;
+}
 
 // Helper para convertir flujo PDFKit a Buffer
 function generatePdfBuffer(doc: any): Promise<Buffer> {
@@ -120,6 +143,7 @@ function buildExcelBuffer(ctos: any[], dateStr: string): Buffer {
 
 // Función común para construir el buffer del PDF (PDFKit)
 async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
+  const PDFDocument = (await import("pdfkit")).default;
   const doc = new PDFDocument({ margin: 40 });
   
   try {
