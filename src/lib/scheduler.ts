@@ -59,15 +59,33 @@ async function getDailySummaryData(prisma: PrismaClient) {
     orderBy: { timestamp: "desc" }
   });
 
+  // 1. Primer paso: identificar CTO IDs que cambiaron a CORRECTO o FALLO hoy
+  const auditedCtoIds = new Set<string>();
+  for (const log of historyLogs) {
+    const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+    if (recordMadridStr !== todayMadridStr) continue;
+
+    const action = log.action || "";
+    if (
+      action.includes("a CORRECTO") ||
+      action.includes("a FALLO") ||
+      action.includes("a: CORRECTO") ||
+      action.includes("a: FALLO")
+    ) {
+      auditedCtoIds.add(log.ctoId);
+    }
+  }
+
+  // 2. Segundo paso: agrupar por CTO, solo las auditadas hoy
   const auditedTodayMap = new Map<string, any>();
 
   for (const log of historyLogs) {
     const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
     if (recordMadridStr !== todayMadridStr) continue;
+    if (!log.cto) continue;
+    if (!auditedCtoIds.has(log.ctoId)) continue;
 
-    const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
-
-    if (isCtoAuditedState && !auditedTodayMap.has(log.ctoId)) {
+    if (!auditedTodayMap.has(log.ctoId)) {
       const auditTime = log.timestamp.toLocaleTimeString("es-ES", {
         timeZone: "Europe/Madrid",
         hour: "2-digit",
@@ -95,7 +113,6 @@ async function getDailySummaryData(prisma: PrismaClient) {
 
   return {
     date: todayMadridStr,
-    // Formato ISO para pasar como ?date= en la URL del reporte público
     dateIso: new Date().toISOString().slice(0, 10),
     ctos: Array.from(auditedTodayMap.values()).sort((a, b) => a.timestamp - b.timestamp)
   };
@@ -249,24 +266,54 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
     for (const s of settings) config[s.key] = s.value;
 
     // 1. Validar si está habilitado
-    if (config["email_schedule_enabled"] !== "true") return;
+    if (config["email_schedule_enabled"] !== "true") {
+      console.log("[Scheduler] Envío automático desactivado. Saltando.");
+      return;
+    }
 
-    // 2. Determinar hora actual de Madrid
+    // 2. Determinar hora:minuto actual de Madrid
     const now = new Date();
     const madridDateStr = now.toLocaleDateString("en-US", { timeZone: "Europe/Madrid" });
+
     const formatterHour = new Intl.DateTimeFormat("en-US", {
       timeZone: "Europe/Madrid",
       hour: "numeric",
       hour12: false
     });
+    const formatterMinute = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Madrid",
+      minute: "numeric"
+    });
     const currentHour = parseInt(formatterHour.format(now));
-    const targetHour = parseInt(config["email_schedule_hour"] || "20");
+    const currentMinute = parseInt(formatterMinute.format(now));
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
 
-    // 3. Comprobar si corresponde enviar a esta hora
-    if (currentHour < targetHour) return;
+    // 3. Parsear la hora objetivo (soporta "20", "20:00", "19:45", etc.)
+    const rawTarget = config["email_schedule_hour"] || "20";
+    let targetHour: number;
+    let targetMinute: number;
 
-    // 4. Comprobar si ya fue enviado hoy
-    if (config["email_last_sent_date"] === madridDateStr) return;
+    if (rawTarget.includes(":")) {
+      const parts = rawTarget.split(":");
+      targetHour = parseInt(parts[0]) || 0;
+      targetMinute = parseInt(parts[1]) || 0;
+    } else {
+      targetHour = parseInt(rawTarget) || 20;
+      targetMinute = 0;
+    }
+    const targetTotalMinutes = targetHour * 60 + targetMinute;
+
+    // 4. Comprobar si corresponde enviar a esta hora
+    if (currentTotalMinutes < targetTotalMinutes) {
+      console.log(`[Scheduler] Aún no es la hora (actual: ${String(currentHour).padStart(2,"0")}:${String(currentMinute).padStart(2,"0")} Madrid, programado: ${String(targetHour).padStart(2,"0")}:${String(targetMinute).padStart(2,"0")}). Saltando.`);
+      return;
+    }
+
+    // 5. Comprobar si ya fue enviado hoy
+    if (config["email_last_sent_date"] === madridDateStr) {
+      console.log(`[Scheduler] Ya se envió hoy (${madridDateStr}). Saltando.`);
+      return;
+    }
 
     // Bloqueo inmediato para evitar envíos duplicados
     await prisma.setting.upsert({
@@ -275,9 +322,9 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
       create: { key: "email_last_sent_date", value: madridDateStr }
     });
 
-    console.log(`[Scheduler] Iniciando envio de reporte diario automatico para ${madridDateStr}...`);
+    console.log(`[Scheduler] ¡Hora alcanzada! Iniciando envío de reporte diario automático para ${madridDateStr} (${String(targetHour).padStart(2,"0")}:${String(targetMinute).padStart(2,"0")})...`);
 
-    // 5. Cargar ajustes de envio
+    // 6. Cargar ajustes de envío
     const emailRecipients = (config["email_recipients"] || "").trim();
     if (!emailRecipients) {
       console.warn("[Scheduler] No se han configurado destinatarios de correo.");
@@ -287,19 +334,19 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
     const mailCfg = buildMailConfigFromSettings(config);
     const emailFooter = config["email_footer"] || "Plan Algodon - Reportes Automatizados";
 
-    // 6. Obtener datos del dia
+    // 7. Obtener datos del día
     const data = await getDailySummaryData(prisma);
 
-    // Si no hubo auditorias hoy, registrar y no enviar
+    // Si no hubo auditorías hoy, registrar y no enviar
     if (data.ctos.length === 0) {
-      console.log(`[Scheduler] Sin auditorias hoy (${data.date}). No se enviara el reporte.`);
+      console.log(`[Scheduler] Sin auditorías hoy (${data.date}). No se enviará el reporte.`);
       return;
     }
 
     const excelBuffer = buildExcelBuffer(data.ctos);
     const pdfBuffer = await buildPdfBuffer(data.ctos, data.date);
 
-    // Construir enlace con fecha especifica para que el reporte interactivo muestre ese dia
+    // Construir enlace con fecha específica para que el reporte interactivo muestre ese día
     const appUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
     const publicToken = config["public_access_token"] || "";
     const dateParam = data.dateIso; // "YYYY-MM-DD"
@@ -326,9 +373,9 @@ export async function checkAndSendDailyReport(prisma: PrismaClient) {
       ],
     }, mailCfg);
 
-    console.log(`[Scheduler] Reporte diario enviado a ${emailRecipients} para ${madridDateStr}.`);
+    console.log(`[Scheduler] ✅ Reporte diario enviado exitosamente a ${emailRecipients} para ${madridDateStr}.`);
   } catch (error: any) {
-    console.error("[Scheduler] Error in checkAndSendDailyReport:", error);
+    console.error("[Scheduler] ❌ Error in checkAndSendDailyReport:", error);
     // Resetear para permitir reintento
     try {
       await prisma.setting.delete({ where: { key: "email_last_sent_date" } }).catch(() => {});

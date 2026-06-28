@@ -20,7 +20,7 @@ export default function AdminSettingsPage() {
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPass, setSmtpPass] = useState("");
   const [emailRecipients, setEmailRecipients] = useState("");
-  const [emailScheduleHour, setEmailScheduleHour] = useState("20");
+  const [emailScheduleHour, setEmailScheduleHour] = useState("20:00");
   const [emailScheduleEnabled, setEmailScheduleEnabled] = useState(false);
   const [publicReportPassword, setPublicReportPassword] = useState("netdata");
   const [emailFooter, setEmailFooter] = useState("");
@@ -44,6 +44,7 @@ export default function AdminSettingsPage() {
   const [savingMail, setSavingMail] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingManual, setSendingManual] = useState(false);
+  const [forceSending, setForceSending] = useState(false);
 
   useEffect(() => {
     if (authStatus === "authenticated") {
@@ -80,7 +81,13 @@ export default function AdminSettingsPage() {
         setSmtpUser(settings.smtpUser || "");
         setSmtpPass(settings.smtpPass || "");
         setEmailRecipients(settings.emailRecipients || "");
-        setEmailScheduleHour(settings.emailScheduleHour || "20");
+        // Normalize to HH:MM format
+        const rawHour = settings.emailScheduleHour || "20";
+        if (rawHour.includes(":")) {
+          setEmailScheduleHour(rawHour);
+        } else {
+          setEmailScheduleHour(String(rawHour).padStart(2, "0") + ":00");
+        }
         setEmailScheduleEnabled(settings.emailScheduleEnabled || false);
         setPublicReportPassword(settings.publicReportPassword || "netdata");
         setEmailFooter(settings.emailFooter || "");
@@ -135,7 +142,7 @@ export default function AdminSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           smtpHost, smtpPort: parseInt(smtpPort), smtpSecure, smtpUser, smtpPass,
-          emailRecipients, emailScheduleHour: parseInt(emailScheduleHour),
+          emailRecipients, emailScheduleHour,
           emailScheduleEnabled, publicReportPassword, emailFooter, emailMethod, publicAccessToken,
           brevoApiKey, brevoSenderEmail, brevoSenderName
         })
@@ -195,6 +202,29 @@ export default function AdminSettingsPage() {
       alert("Error al conectar con el servidor.");
     } finally {
       setSendingManual(false);
+    }
+  };
+
+  const handleForceSend = async () => {
+    if (!confirm("¿Forzar el envío del reporte diario AHORA? Esto ignora la hora programada y el control de duplicados.")) return;
+    setForceSending(true);
+    try {
+      const res = await fetch("/api/admin/email-settings/force-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Reporte forzado enviado con éxito.");
+        loadSettings();
+      } else {
+        alert(`Error: ${data.error || "Falló el envío forzado."}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al conectar con el servidor.");
+    } finally {
+      setForceSending(false);
     }
   };
 
@@ -310,7 +340,7 @@ export default function AdminSettingsPage() {
         </div>
         <div>
           <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Hora Programada</span>
-          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)" }}>{String(emailScheduleHour).padStart(2, "0")}:00 Madrid</span>
+          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)" }}>{emailScheduleHour} Madrid</span>
         </div>
         <div>
           <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Envío Automático</span>
@@ -581,16 +611,14 @@ export default function AdminSettingsPage() {
 
             <div>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600 }}>Hora de Envío Diario (Horario Madrid)</label>
-              <select
+              <input
+                type="time"
                 value={emailScheduleHour}
                 onChange={e => setEmailScheduleHour(e.target.value)}
                 className="input-field"
                 style={{ padding: "8px 12px", minHeight: "38px" }}
-              >
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>
-                ))}
-              </select>
+              />
+              <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "4px 0 0 0" }}>Formato HH:MM — puedes poner cualquier hora para pruebas</p>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

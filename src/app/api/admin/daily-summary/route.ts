@@ -52,17 +52,33 @@ export async function GET(req: NextRequest) {
       orderBy: { timestamp: "desc" }
     });
 
-    // Filtrar y agrupar por CTO para quedarnos con el último cambio relevante de hoy
+    // 1. Primer paso: identificar los CTO IDs que tuvieron un cambio de estado a CORRECTO o FALLO hoy
+    const auditedCtoIds = new Set<string>();
+    for (const log of historyLogs) {
+      const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+      if (recordMadridStr !== targetDateStr) continue;
+
+      const action = log.action || "";
+      if (
+        action.includes("a CORRECTO") ||
+        action.includes("a FALLO") ||
+        action.includes("a: CORRECTO") ||
+        action.includes("a: FALLO")
+      ) {
+        auditedCtoIds.add(log.ctoId);
+      }
+    }
+
+    // 2. Segundo paso: agrupar por CTO para quedarnos con el último cambio relevante, solo de las auditadas hoy
     const auditedTodayMap = new Map<string, any>();
 
     for (const log of historyLogs) {
       const recordMadridStr = log.timestamp.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
       if (recordMadridStr !== targetDateStr) continue;
+      if (!log.cto) continue;
+      if (!auditedCtoIds.has(log.ctoId)) continue;
 
-      // Verificar si es un cambio de estado auditado (CORRECTO o FALLO)
-      const isCtoAuditedState = log.cto && (log.cto.status === "CORRECTO" || log.cto.status === "FALLO");
-
-      if (isCtoAuditedState && !auditedTodayMap.has(log.ctoId)) {
+      if (!auditedTodayMap.has(log.ctoId)) {
         const auditTime = log.timestamp.toLocaleTimeString("es-ES", {
           timeZone: "Europe/Madrid",
           hour: "2-digit",
