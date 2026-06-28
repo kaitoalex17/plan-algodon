@@ -299,7 +299,8 @@ async function buildPdfBuffer(ctos: any[], dateStr: string): Promise<Buffer> {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== "ADMIN") {
+    const role = (session?.user as any)?.role;
+    if (!session || (role !== "ADMIN" && role !== "GESTOR")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

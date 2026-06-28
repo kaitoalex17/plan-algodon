@@ -6,8 +6,8 @@ import { authOptions } from "@/lib/auth";
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    // Verificar que el usuario sea administrador
-    if ((session?.user as any)?.role !== "ADMIN") {
+    const role = (session?.user as any)?.role;
+    if (role !== "ADMIN" && role !== "GESTOR") {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
