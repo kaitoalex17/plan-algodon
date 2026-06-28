@@ -6,6 +6,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  outputFileTracingIncludes: {
+    '/**/*': ['./node_modules/pdfkit/js/data/**'],
+  },
 };
 
 export default nextConfig;
