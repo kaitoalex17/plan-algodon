@@ -45,7 +45,7 @@ export default function AdminEvidenciaPage() {
   useEffect(() => {
     if (authStatus === "authenticated") {
       const role = (session?.user as any)?.role;
-      if (role !== "ADMIN") {
+      if (role !== "ADMIN" && role !== "GESTOR") {
         router.push("/");
       } else {
         fetchEvidencias();
@@ -142,7 +142,10 @@ export default function AdminEvidenciaPage() {
       <header style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button 
-            onClick={() => router.push("/admin")} 
+            onClick={() => {
+              const role = (session?.user as any)?.role;
+              router.push(role === "GESTOR" ? "/gestion" : "/admin");
+            }} 
             className="btn" 
             style={{ minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)", borderRadius: "8px", fontWeight: 700 }}
           >
@@ -201,6 +204,38 @@ export default function AdminEvidenciaPage() {
                     <span style={{ fontSize: "0.75rem", background: "var(--bg-color)", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
                       {ctoItem.images.length} {ctoItem.images.length === 1 ? "foto" : "fotos"}
                     </span>
+                    
+                    {/* Botón Descargar Carpeta (ZIP) */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/api/admin/evidencia/download-cto?ctoId=${ctoItem.id}`;
+                      }}
+                      className="btn"
+                      style={{
+                        marginTop: "4px",
+                        minHeight: "32px",
+                        fontSize: "0.75rem",
+                        padding: "4px 10px",
+                        background: "#10b981",
+                        color: "white",
+                        borderRadius: "6px",
+                        fontWeight: 700,
+                        gap: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                      title="Descargar todas las fotos de esta CTO en un archivo ZIP"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Descargar ZIP
+                    </button>
                   </div>
                 ))}
               </div>

@@ -154,10 +154,10 @@ export default function UsersPage() {
                         <td style={{ padding: "1rem" }}>
                           <span style={{
                             padding: "3px 10px", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 700,
-                            background: user.role === "ADMIN" ? "#FF790020" : "#e5e7eb",
-                            color: user.role === "ADMIN" ? "#FF7900" : "#374151",
+                            background: user.role === "ADMIN" ? "#FF790020" : user.role === "GESTOR" ? "#10B98120" : "#e5e7eb",
+                            color: user.role === "ADMIN" ? "#FF7900" : user.role === "GESTOR" ? "#10B981" : "#374151",
                           }}>
-                            {user.role === "ADMIN" ? "Administrador" : "Técnico"}
+                            {user.role === "ADMIN" ? "Administrador" : user.role === "GESTOR" ? "Gestor" : "Técnico"}
                           </span>
                         </td>
                         <td style={{ padding: "1rem", color: "#374151", fontWeight: 600 }}>
@@ -271,7 +271,8 @@ export default function UsersPage() {
                   value={form.role}
                   onChange={e => setForm({ ...form, role: e.target.value })}
                 >
-                  <option value="USER">Técnico (solo lectura/edicion)</option>
+                  <option value="USER">Técnico (solo lectura/edición)</option>
+                  <option value="GESTOR">Gestor (auditoría/evidencias)</option>
                   <option value="ADMIN">Administrador (acceso completo)</option>
                 </select>
               </div>

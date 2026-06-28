@@ -11,6 +11,10 @@ export default async function Home() {
     redirect("/login");
   }
 
+  if ((session.user as any).role === "GESTOR") {
+    redirect("/gestion");
+  }
+
   const userId = (session.user as any).id;
 
   let ctos = [];

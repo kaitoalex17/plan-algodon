@@ -230,47 +230,78 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     await saveCto("CORRECTO", currentUserId || assignedToId, updatePayload);
   };
 
-  // Upload pictures with real percentage progress
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload pictures sequentially (file by file) with overall progress tracking
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setUploading(true);
-    setUploadProgress({ percent: 0, loaded: 0, total: files[0]?.size || 0 });
-    const formData = new FormData();
+    
+    // Calcular tamaño total
+    let totalSize = 0;
     for (let i = 0; i < files.length; i++) {
-      formData.append("files", files[i]);
+      totalSize += files[i].size;
     }
-    formData.append("ctoId", cto.id);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload");
+    setUploadProgress({ percent: 0, loaded: 0, total: totalSize });
 
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress({ percent, loaded: event.loaded, total: event.total });
+    let loadedSoFar = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const formData = new FormData();
+      formData.append("files", file); // El backend espera "files" (Multipart Form File)
+      formData.append("ctoId", cto.id);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/upload");
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const currentLoaded = event.loaded;
+              const overallLoaded = loadedSoFar + currentLoaded;
+              const percent = Math.min(99, Math.round((overallLoaded / totalSize) * 100));
+              setUploadProgress({ percent, loaded: overallLoaded, total: totalSize });
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              loadedSoFar += file.size;
+              // Al terminar este archivo actualizamos al total subido real hasta el momento
+              setUploadProgress({
+                percent: Math.round((loadedSoFar / totalSize) * 100),
+                loaded: loadedSoFar,
+                total: totalSize
+              });
+              resolve();
+            } else {
+              reject(new Error("Error en servidor"));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Error de red"));
+          xhr.send(formData);
+        });
+      } catch (err) {
+        console.error("Fallo al subir archivo:", file.name, err);
+        failedCount++;
+        loadedSoFar += file.size;
       }
-    };
+    }
 
-    xhr.onload = () => {
-      setUploading(false);
-      setUploadProgress(null);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        alert(`Se han subido ${files.length} imágenes correctamente`);
-        fetchCtoDetails(); // Refrescar para mostrar las nuevas imágenes
-      } else {
-        alert("Error al subir las imágenes");
-      }
-    };
+    setUploading(false);
+    setUploadProgress(null);
 
-    xhr.onerror = () => {
-      setUploading(false);
-      setUploadProgress(null);
-      alert("Error al conectar con el servidor de subida");
-    };
-
-    xhr.send(formData);
+    if (failedCount > 0) {
+      alert(`Subida completada: ${files.length - failedCount} archivos subidos con éxito, ${failedCount} fallidos.`);
+    } else {
+      alert(`Se han subido las ${files.length} imágenes correctamente (archivo por archivo).`);
+    }
+    fetchCtoDetails();
   };
 
   const handleRotateImage = async (imageId: string, direction: "left" | "right") => {

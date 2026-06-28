@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== "ADMIN") {
+    const role = (session?.user as any)?.role;
+    if (!session || (role !== "ADMIN" && role !== "GESTOR")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
@@ -15,6 +16,10 @@ export async function GET() {
     for (const s of settings) {
       result[s.key] = s.value;
     }
+
+    const serverTimeMadrid = new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid" });
+    const serverTimeUtc = new Date().toISOString();
+    const lastSentDate = result["email_last_sent_date"] || "Nunca";
 
     return NextResponse.json({
       smtpHost: result["smtp_host"] || "",
@@ -32,6 +37,9 @@ export async function GET() {
       brevoApiKey: result["brevo_api_key"] || "",
       brevoSenderEmail: result["brevo_sender_email"] || "",
       brevoSenderName: result["brevo_sender_name"] || "Plan Algodón",
+      serverTimeMadrid,
+      serverTimeUtc,
+      lastSentDate
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

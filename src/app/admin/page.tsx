@@ -2,70 +2,52 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
+  const router = useRouter();
+  const { data: session, status: authStatus } = useSession();
+
   const [stats, setStats] = useState({
     usersCount: 0,
     ctosCount: 0,
     programadasCount: 0,
-    auditoriaCount: 0
+    auditoriaCount: 0,
+    ctosAuditadas: 0,
+    ctosPendientes: 0
   });
-  const [imageQuality, setImageQuality] = useState(80);
-  const [imageMaxWidth, setImageMaxWidth] = useState(1600);
-  
+
   const [loading, setLoading] = useState(true);
-  const [savingSettings, setSavingSettings] = useState(false);
   const [deletingImages, setDeletingImages] = useState(false);
   const [deletingCtos, setDeletingCtos] = useState(false);
   const [migratingAuditors, setMigratingAuditors] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [resSummary, resSettings] = await Promise.all([
-          fetch("/api/admin/summary"),
-          fetch("/api/admin/settings")
-        ]);
-        
-        if (resSummary.ok) {
-          setStats(await resSummary.json());
-        }
-        
-        if (resSettings.ok) {
-          const settings = await resSettings.json();
-          setImageQuality(parseInt(settings.imageQuality) || 80);
-          setImageMaxWidth(parseInt(settings.imageMaxWidth) || 1600);
-        }
-      } catch (err) {
-        console.error("Error cargando panel admin:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingSettings(true);
-    try {
-      const res = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageQuality, imageMaxWidth })
-      });
-      if (res.ok) {
-        alert("Ajustes de compresión de imagen guardados correctamente.");
+    if (authStatus === "authenticated") {
+      const role = (session?.user as any)?.role;
+      if (role !== "ADMIN") {
+        router.push("/");
       } else {
-        alert("Error al guardar los ajustes.");
+        loadData();
+      }
+    } else if (authStatus === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [authStatus, session, router]);
+
+  async function loadData() {
+    try {
+      const resSummary = await fetch("/api/admin/summary");
+      if (resSummary.ok) {
+        setStats(await resSummary.json());
       }
     } catch (err) {
-      console.error(err);
-      alert("Error en el servidor al guardar.");
+      console.error("Error cargando panel admin:", err);
     } finally {
-      setSavingSettings(false);
+      setLoading(false);
     }
-  };
+  }
 
   const handleDeleteAllImages = async () => {
     if (!confirm("⚠️ ¡PELIGRO! ¿Estás completamente seguro de que deseas eliminar TODAS las evidencias fotográficas? Esta acción no se puede deshacer y borrará todas las fotos físicas del servidor y de la base de datos.")) {
@@ -83,7 +65,7 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         alert(`Se han eliminado con éxito ${data.count || 0} imágenes de la base de datos y del disco.`);
-        window.location.reload();
+        loadData();
       } else {
         alert("Error al intentar eliminar las evidencias.");
       }
@@ -111,7 +93,7 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         alert(`Se han eliminado con éxito ${data.count || 0} registros de CTOs.`);
-        window.location.reload();
+        loadData();
       } else {
         alert("Error al intentar eliminar las CTOs.");
       }
@@ -144,9 +126,9 @@ export default function AdminPage() {
     }
   };
 
-  if (loading) {
+  if (loading || authStatus === "loading") {
     return (
-      <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>
+      <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280", background: "var(--bg-color)" }}>
         Cargando Panel de Administración...
       </div>
     );
@@ -155,35 +137,42 @@ export default function AdminPage() {
   return (
     <div style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto', color: 'var(--text-color)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Panel de Administración</h1>
+        <div>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Panel de Administración</h1>
+          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Plan Algodón v2.0 — Control Completo del Servidor</p>
+        </div>
         <Link href="/" className="btn btn-primary">Volver al Mapa</Link>
       </div>
 
-      {/* Grid de Estadísticas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Usuarios</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-color)' }}>{stats.usersCount}</p>
+      {/* Grid de Estadísticas Rediseñado */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
+        <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+          <h3 style={{ color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Usuarios</h3>
+          <p style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary-color)', margin: 0 }}>{stats.usersCount}</p>
         </div>
-        <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>CTOs Totales</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>{stats.ctosCount}</p>
+        <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+          <h3 style={{ color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>CTOs Totales</h3>
+          <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b', margin: 0 }}>{stats.ctosCount}</p>
         </div>
-        <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>CTOs Auditoría</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#3b82f6' }}>{stats.auditoriaCount}</p>
+        <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+          <h3 style={{ color: '#10b981', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Auditadas</h3>
+          <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', margin: 0 }}>{stats.ctosAuditadas}</p>
         </div>
-        <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>CTOs Programadas</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#8b5cf6' }}>{stats.programadasCount}</p>
+        <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+          <h3 style={{ color: '#3b82f6', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Pendientes</h3>
+          <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#3b82f6', margin: 0 }}>{stats.ctosPendientes}</p>
+        </div>
+        <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+          <h3 style={{ color: '#8b5cf6', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Programadas</h3>
+          <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#8b5cf6', margin: 0 }}>{stats.programadasCount}</p>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
         
         {/* Acciones principales */}
-        <div className="glass-panel" style={{ padding: '2rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', fontWeight: 700 }}>Acciones de Gestión</h2>
+        <div className="glass-panel" style={{ padding: '2rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px' }}>
+          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', fontWeight: 800 }}>Acciones de Gestión</h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <Link href="/admin/import" className="btn btn-primary" style={{ justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
@@ -244,11 +233,25 @@ export default function AdminPage() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22 6 12 13 2 6" />
               </svg>
-              Resumen Diario y Ajustes de Correo
+              Resumen Diario de Auditoría
             </Link>
-            
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.75rem 0' }} />
-            
+
+            {/* BOTÓN NUEVO DE AJUSTES UNIFICADOS */}
+            <Link href="/admin/settings" className="btn" style={{ background: 'rgba(249,115,22,0.1)', color: 'var(--primary-color)', border: '1.5px solid var(--primary-color)', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 700 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              ⚙️ Ajustes del Sistema (v2.0)
+            </Link>
+          </div>
+        </div>
+
+        {/* Acciones de bases de datos */}
+        <div className="glass-panel" style={{ padding: '2rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px' }}>
+          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', fontWeight: 800 }}>Mantenimiento y Copias</h2>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <a href="/api/admin/export" className="btn" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -311,53 +314,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Ajustes de compresión de imágenes */}
-        <div className="glass-panel" style={{ padding: '2rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
-          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', fontWeight: 700 }}>Ajustes de Compresión (WhatsApp HD)</h2>
-          
-          <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
-                Calidad de Compresión: <strong>{imageQuality}%</strong>
-              </label>
-              <input 
-                type="range" 
-                min="50" 
-                max="100" 
-                value={imageQuality} 
-                onChange={(e) => setImageQuality(parseInt(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--primary-color)' }}
-              />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Recomendado: 80% para un balance óptimo de peso y claridad.</span>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
-                Dimensión Máxima (Ancho/Alto px):
-              </label>
-              <input 
-                type="number" 
-                className="input-field" 
-                min="600" 
-                max="3000" 
-                value={imageMaxWidth} 
-                onChange={(e) => setImageMaxWidth(parseInt(e.target.value))}
-                style={{ padding: '8px 12px', minHeight: '40px', background: 'var(--card-bg)', color: 'var(--text-color)', border: '1.5px solid var(--border-color)' }}
-              />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Recomendado: 1600px (WhatsApp HD). Las imágenes se escalarán proporcionalmente si superan este tamaño.</span>
-            </div>
-
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              style={{ width: '100%', minHeight: '44px' }}
-              disabled={savingSettings}
-            >
-              {savingSettings ? "Guardando..." : "💾 Guardar Ajustes"}
-            </button>
-          </form>
-        </div>
-
       </div>
 
       <div style={{ 
@@ -370,7 +326,7 @@ export default function AdminPage() {
         borderTop: "1px solid var(--border-color)",
         paddingTop: "1rem"
       }}>
-        Plan Algodón - Versión 1.7.7
+        Plan Algodón - Versión 2.0.0
       </div>
     </div>
   );

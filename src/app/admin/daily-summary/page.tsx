@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface CtoReport {
   id: string;
@@ -29,12 +31,28 @@ export default function DailySummaryPage() {
     return `${year}-${month}-${day}`;
   });
 
+  const router = useRouter();
+  const { data: session, status: authStatus } = useSession();
+  const [serverTimeMadrid, setServerTimeMadrid] = useState("");
+  const [lastSentDate, setLastSentDate] = useState("Nunca");
+
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<{ date: string; count: number; ctos: CtoReport[] }>({
     date: "",
     count: 0,
     ctos: []
   });
+
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      const role = (session?.user as any)?.role;
+      if (role !== "ADMIN" && role !== "GESTOR") {
+        router.push("/");
+      }
+    } else if (authStatus === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [authStatus, session, router]);
 
   // Email/SMTP Settings form
   const [smtpHost, setSmtpHost] = useState("");
@@ -86,6 +104,8 @@ export default function DailySummaryPage() {
         setBrevoApiKey(settings.brevoApiKey || "");
         setBrevoSenderEmail(settings.brevoSenderEmail || "");
         setBrevoSenderName(settings.brevoSenderName || "Plan Algodón");
+        setServerTimeMadrid(settings.serverTimeMadrid || "");
+        setLastSentDate(settings.lastSentDate || "Nunca");
       }
     } catch (err) {
       console.error("Error cargando resumen diario:", err);
@@ -318,7 +338,34 @@ export default function DailySummaryPage() {
               }}
             />
           </div>
-          <Link href="/admin" className="btn btn-primary">Volver al Panel</Link>
+          <Link 
+            href={session?.user && (session.user as any).role === "GESTOR" ? "/gestion" : "/admin"} 
+            className="btn btn-primary"
+          >
+            Volver al Panel
+          </Link>
+        </div>
+      </div>
+
+      {/* Estado del Programador de Correo */}
+      <div className="glass-panel" style={{ padding: "1rem 1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px", display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div>
+          <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Hora Servidor (Madrid)</span>
+          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--primary-color)" }}>{serverTimeMadrid || "Cargando..."}</span>
+        </div>
+        <div>
+          <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Hora Programada</span>
+          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)" }}>{String(emailScheduleHour).padStart(2, "0")}:00 Madrid</span>
+        </div>
+        <div>
+          <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Envío Automático</span>
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: emailScheduleEnabled ? "#10b981" : "#ef4444" }}>
+            {emailScheduleEnabled ? "● Activado" : "○ Desactivado"}
+          </span>
+        </div>
+        <div>
+          <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Último Reporte Automatico</span>
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-color)" }}>{lastSentDate}</span>
         </div>
       </div>
 
@@ -390,8 +437,10 @@ export default function DailySummaryPage() {
           )}
         </div>
 
-        {/* Panel: Enlace Público de Acceso */}
-        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
+        {session?.user && (session.user as any).role === "ADMIN" && (
+          <>
+            {/* Panel: Enlace Público de Acceso */}
+            <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             🔗 Enlace Público de Acceso Directo
           </h2>
@@ -722,6 +771,8 @@ export default function DailySummaryPage() {
 
           </form>
         </div>
+          </>
+        )}
 
       </div>
     </div>
