@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       num, numeroNuevo, lat, lng, municipio, colocacion,
       puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto,
       zona, cluster, category,
-      hasFormulario, hasDrive, hasAntala
+      hasFormulario, hasDrive, hasAntala, formDataJson
     } = body;
     const userId = (session.user as any).id;
 
@@ -129,6 +129,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (hasAntala !== undefined && hasAntala !== oldCto.hasAntala) {
       updateData.hasAntala = hasAntala;
       historyActions.push(`Antala: ${hasAntala ? 'Sí' : 'No'}`);
+    }
+
+    if (formDataJson !== undefined && formDataJson !== oldCto.formDataJson) {
+      updateData.formDataJson = formDataJson;
+      historyActions.push("Actualizó el formulario guiado (Ficha)");
     }
 
     if (subStatusId !== undefined && subStatusId !== oldCto.subStatusId) {

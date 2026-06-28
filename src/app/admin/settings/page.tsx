@@ -31,6 +31,10 @@ export default function AdminSettingsPage() {
   const [brevoSenderEmail, setBrevoSenderEmail] = useState("");
   const [brevoSenderName, setBrevoSenderName] = useState("Plan Algodón");
 
+  // Settings State: Questionnaire
+  const [questJson, setQuestJson] = useState("");
+  const [savingQuest, setSavingQuest] = useState(false);
+
   // Server metadata
   const [serverTimeMadrid, setServerTimeMadrid] = useState("");
   const [lastSentDate, setLastSentDate] = useState("Nunca");
@@ -56,9 +60,10 @@ export default function AdminSettingsPage() {
 
   const loadSettings = async () => {
     try {
-      const [resCompression, resMail] = await Promise.all([
+      const [resCompression, resMail, resQuest] = await Promise.all([
         fetch("/api/admin/settings"),
-        fetch("/api/admin/email-settings")
+        fetch("/api/admin/email-settings"),
+        fetch("/api/admin/questionnaire-settings")
       ]);
 
       if (resCompression.ok) {
@@ -86,6 +91,11 @@ export default function AdminSettingsPage() {
         setBrevoSenderName(settings.brevoSenderName || "Plan Algodón");
         setServerTimeMadrid(settings.serverTimeMadrid || "");
         setLastSentDate(settings.lastSentDate || "Nunca");
+      }
+
+      if (resQuest.ok) {
+        const questData = await resQuest.json();
+        setQuestJson(JSON.stringify(questData, null, 2));
       }
     } catch (err) {
       console.error("Error loading settings:", err);
@@ -185,6 +195,29 @@ export default function AdminSettingsPage() {
       alert("Error al conectar con el servidor.");
     } finally {
       setSendingManual(false);
+    }
+  };
+
+  const handleSaveQuest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingQuest(true);
+    try {
+      const parsed = JSON.parse(questJson);
+      const res = await fetch("/api/admin/questionnaire-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed)
+      });
+      if (res.ok) {
+        alert("Configuración del cuestionario guardada correctamente.");
+      } else {
+        alert("Error al guardar la configuración del cuestionario.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error en el JSON: ${err.message}. Revisa el formato y comas.`);
+    } finally {
+      setSavingQuest(false);
     }
   };
 
@@ -628,6 +661,121 @@ export default function AdminSettingsPage() {
               </button>
             </div>
 
+          </form>
+        </div>
+
+        {/* 4. PERSONALIZACIÓN DEL CUESTIONARIO Y TRADUCCIONES */}
+        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
+          <h2 style={{ marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+            Personalización del Cuestionario Multilingüe
+          </h2>
+          <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
+            Modifica la estructura de preguntas, opciones y traducciones en español y ucraniano en formato JSON.
+            Los comentarios generados finales siempre se compilarán en español independientemente de la selección de idioma del técnico.
+          </p>
+
+          <form onSubmit={handleSaveQuest}>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
+                Estructura del Cuestionario (JSON):
+              </label>
+              <textarea 
+                value={questJson}
+                onChange={e => setQuestJson(e.target.value)}
+                rows={18}
+                style={{
+                  width: "100%",
+                  fontFamily: "monospace",
+                  fontSize: "0.8rem",
+                  padding: "10px",
+                  background: "var(--bg-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "6px"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                disabled={savingQuest}
+                style={{ flex: 1.5, justifyContent: "center", minHeight: "40px" }}
+              >
+                {savingQuest ? "Guardando..." : "Guardar Estructura del Cuestionario"}
+              </button>
+              
+              <button 
+                type="button" 
+                className="btn"
+                onClick={() => {
+                  if (confirm("¿Estás seguro de que deseas restablecer los valores predeterminados del cuestionario? Esto sobrescribirá los cambios no guardados.")) {
+                    const DEFAULT_CONFIG = {
+                      threshold: 22.99,
+                      noSignalValue: 70.0,
+                      ubicacion: {
+                        label_es: "Dónde se encuentra la CTO",
+                        label_uk: "Де знаходиться CTO",
+                        options: [
+                          { es: "Interior > en techo falso", uk: "Внутрішній > у підвісній стелі" },
+                          { es: "Interior > en la pared", uk: "Внутрішній > на стіні" },
+                          { es: "Poste", uk: "Стовп" },
+                          { es: "Registro", uk: "Реєстр/Коробка" },
+                          { es: "Indicar el número de la planta > de metal, grande", uk: "Вказати номер поверху > металевий, великий" },
+                          { es: "Indicar el número de la planta > de madera", uk: "Вказати номер поверху > дерев'яний" },
+                          { es: "Indicar el número de la planta > en vertical", uk: "Вказати номер поверху > вертикальний" },
+                          { es: "Arqueta", uk: "Люк/Колодязь" },
+                          { es: "Riti", uk: "Ріті (щитова)" },
+                          { es: "Otros (introducir manualmente)", uk: "Інше (ввести вручну)" }
+                        ]
+                      },
+                      danos: {
+                        label_es: "¿La CTO está con daños, visibles suciedades?",
+                        label_uk: "Чи має CTO видимі пошкодження або бруд?",
+                        options: [
+                          { es: "Le falta la tapa", uk: "Відсутня кришка" },
+                          { es: "Tiene cables rotos o dañados", uk: "Має обірвані або пошкоджені кабелі" },
+                          { es: "Tiene cables doblados", uk: "Має загнуті кабелі" },
+                          { es: "No se puede cerrar", uk: "Не закривається" },
+                          { es: "Está sucia y/o llena de agua", uk: "Брудна та/або заповнена водою" },
+                          { es: "Le faltan enfrentadores", uk: "Відсутні з'єднувачі/адаптери" },
+                          { es: "Tiene los divisores/splitter rotos", uk: "Має зламані дільники/спліттери" }
+                        ]
+                      },
+                      llaves: {
+                        label_es: "¿Se requieren llaves?",
+                        label_uk: "Чи потрібні ключі?",
+                        options: [
+                          { es: "Nombre del presidente/conserje", uk: "Ім'я голови/консьєржа" },
+                          { es: "Número de teléfono", uk: "Номер телефону" },
+                          { es: "No tengo ningún dato", uk: "Немає жодних даних" }
+                        ]
+                      },
+                      antala: {
+                        label_es: "¿Se requiere Levantamiento en Antala?",
+                        label_uk: "Чи потрібне внесення в Antala?",
+                        text_yes: "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.",
+                        text_failed: "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:"
+                      },
+                      influencia: {
+                        label_es: "Área de influencia",
+                        label_uk: "Зона впливу",
+                        options: [
+                          { key: "porterillo", es: "Porterillo automático", uk: "Домофон", text: "Se adjunta foto del porterillo automático" },
+                          { key: "calle", es: "Calle", uk: "Вулиця" },
+                          { key: "otros", es: "Otros", uk: "Інше" }
+                        ]
+                      }
+                    };
+                    setQuestJson(JSON.stringify(DEFAULT_CONFIG, null, 2));
+                  }
+                }}
+                style={{ flex: 1, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", justifyContent: "center", minHeight: "40px", cursor: "pointer" }}
+              >
+                Restablecer Predeterminados
+              </button>
+            </div>
           </form>
         </div>
 

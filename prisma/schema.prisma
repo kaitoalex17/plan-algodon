@@ -106,6 +106,7 @@ model CTO {
   hasFormulario  Boolean   @default(false)
   hasDrive       Boolean   @default(false)
   hasAntala      Boolean   @default(false)
+  formDataJson   String?
 
   comments       Comment[]
   images         Image[]

@@ -58,6 +58,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
   const [cacheKey, setCacheKey] = useState(Date.now());
   const [zoomScale, setZoomScale] = useState(1);
+  const [showFormSheetModal, setShowFormSheetModal] = useState(false);
 
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
@@ -433,6 +434,25 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   CTO Tracker
                 </button>
               </div>
+
+              <div style={{ display: "flex", gap: "8px", marginTop: "0.5rem" }}>
+                <button 
+                  type="button"
+                  onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
+                  className="btn" 
+                  style={{ flex: 1, minHeight: "34px", background: "#8b5cf6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                >
+                  Guía formulario
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowFormSheetModal(true)}
+                  className="btn" 
+                  style={{ flex: 1, minHeight: "34px", background: "#a855f7", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                >
+                  Ficha formulario
+                </button>
+              </div>
             </div>
 
             {/* Formulario de Auditoría */}
@@ -721,7 +741,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)", cursor: "pointer" }}
                 />
                 <label htmlFor="isProgramadaCheckbox" style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)", cursor: "pointer" }}>
-                  📌 Programada (Trabajo planeado / pre-trabajo)
+                  Programada (Trabajo planeado / pre-trabajo)
                 </label>
               </div>
 
@@ -1236,6 +1256,138 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 Confirmar y Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE FICHA FORMULARIO */}
+      {showFormSheetModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 3500, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "550px", maxHeight: "90vh", display: "flex", flexDirection: "column", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "16px", overflow: "hidden", color: "var(--text-color)" }}>
+            
+            {/* Header */}
+            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>📋 Ficha Formulario: CTO {cto.num}</h3>
+              <button 
+                type="button" 
+                onClick={() => setShowFormSheetModal(false)} 
+                style={{ background: "none", border: "none", color: "var(--text-color)", fontSize: "1.2rem", cursor: "pointer", fontWeight: 700 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: "1.5rem", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              {(() => {
+                if (!details?.formDataJson) {
+                  return (
+                    <div style={{ textAlign: "center", padding: "2rem 1rem", color: "#64748b" }}>
+                      <p style={{ fontSize: "1.5rem", margin: "0 0 10px 0" }}>⚠️</p>
+                      <p style={{ fontSize: "0.9rem", fontWeight: 600, margin: 0 }}>No hay ninguna ficha de formulario guardada para esta CTO.</p>
+                      <p style={{ fontSize: "0.8rem", margin: "6px 0 0 0" }}>Haz clic en <strong>"Guía formulario"</strong> para rellenar el cuestionario.</p>
+                    </div>
+                  );
+                }
+
+                try {
+                  const data = JSON.parse(details.formDataJson);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", fontSize: "0.88rem" }}>
+                      
+                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "6px" }}>
+                        <span style={{ fontWeight: 700, color: "#64748b" }}>Idioma de llenado:</span>
+                        <span style={{ fontWeight: 700, color: "var(--primary-color)" }}>{data.lang === "uk" ? "Ucraniano (Українська)" : "Español"}</span>
+                      </div>
+
+                      {/* 1. Ubicación */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>📍 Ubicación de la CTO:</strong>
+                        <p style={{ margin: 0, paddingLeft: "10px", borderLeft: "2px solid var(--border-color)" }}>{data.ubicacion || "No especificado"}</p>
+                      </div>
+
+                      {/* 2. Daños */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>🛠️ Daños y Suciedades:</strong>
+                        {data.danos && data.danos.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                            {data.danos.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                          </ul>
+                        ) : (
+                          <p style={{ margin: 0, paddingLeft: "10px", borderLeft: "2px solid var(--border-color)", fontStyle: "italic", color: "#64748b" }}>Sin daños visibles</p>
+                        )}
+                      </div>
+
+                      {/* 3. Llaves */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>🔑 Requerimiento de Llaves:</strong>
+                        <p style={{ margin: 0, paddingLeft: "10px", borderLeft: "2px solid var(--border-color)" }}>
+                          {data.requiereLlaves ? (
+                            <span>Sí ({data.datosLlaves || "Sin datos de contacto"})</span>
+                          ) : (
+                            <span>No se requieren llaves</span>
+                          )}
+                        </p>
+                      </div>
+
+                      {/* 4. Splitters */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>📡 Señal de Divisores (Splitters):</strong>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "8px", marginTop: "4px" }}>
+                          {data.splitters && data.splitters.map((s: any, i: number) => (
+                            <div key={i} style={{ background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "6px 10px" }}>
+                              <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Divisor {i + 1}</span>
+                              <span style={{ fontSize: "1rem", fontWeight: 800, color: Math.abs(parseFloat(s.signal)) === 70 ? "#ef4444" : Math.abs(parseFloat(s.signal)) > 22.99 ? "#f59e0b" : "#10b981" }}>
+                                {s.signal} dBm
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 5. Antala */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>🤖 Sincronismo en Antala:</strong>
+                        <p style={{ margin: 0, paddingLeft: "10px", borderLeft: "2px solid var(--border-color)" }}>
+                          {data.requiereAntala ? "Sí requerido" : "No requerido"}
+                        </p>
+                      </div>
+
+                      {/* 6. Influencia */}
+                      <div>
+                        <strong style={{ display: "block", color: "var(--primary-color)", marginBottom: "4px" }}>🏘️ Área de Influencia:</strong>
+                        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                          {data.influenciaPorterillo && <li>Porterillo automático</li>}
+                          {data.influenciaCalle && <li>Vía pública (Números: {data.calleNumeros?.join(", ") || "Ninguno"})</li>}
+                          {data.influenciaOtros && <li>Otros: {data.influenciaOtrosTexto}</li>}
+                        </ul>
+                      </div>
+
+                      {/* Comentario generado */}
+                      <div style={{ marginTop: "10px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "10px 12px" }}>
+                        <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700, display: "block", marginBottom: "4px" }}>📝 COMENTARIO GENERADO (ESPAÑOL):</span>
+                        <p style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", whiteSpace: "pre-wrap", color: "var(--text-color)" }}>{data.generatedComment}</p>
+                      </div>
+
+                    </div>
+                  );
+                } catch (e) {
+                  return <p style={{ color: "#ef4444" }}>Error al analizar los datos del formulario.</p>;
+                }
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "10px" }}>
+              <button 
+                type="button" 
+                onClick={() => setShowFormSheetModal(false)} 
+                className="btn btn-primary" 
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                Entendido
+              </button>
+            </div>
+
           </div>
         </div>
       )}
