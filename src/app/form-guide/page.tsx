@@ -78,9 +78,7 @@ function FormGuideContent() {
   // Step 6: Área de influencia
   const [influenciaPorterillo, setInfluenciaPorterillo] = useState(false);
   const [influenciaCalle, setInfluenciaCalle] = useState(false);
-  const [calleTipo, setCalleTipo] = useState("Calle");
-  const [calleNombre, setCalleNombre] = useState("");
-  const [calleNumeros, setCalleNumeros] = useState<string[]>([""]);
+  const [callesList, setCallesList] = useState<string[]>([""]);
   const [influenciaOtros, setInfluenciaOtros] = useState(false);
   const [influenciaOtrosTexto, setInfluenciaOtrosTexto] = useState("");
 
@@ -93,6 +91,7 @@ function FormGuideContent() {
   useEffect(() => {
     // Enable mobile scrolling
     document.body.classList.add("admin-page");
+    document.documentElement.classList.add("admin-page");
 
     // Load active map state theme
     fetch("/api/users/map-state")
@@ -111,6 +110,7 @@ function FormGuideContent() {
 
     return () => {
       document.body.classList.remove("admin-page");
+      document.documentElement.classList.remove("admin-page");
     };
   }, []);
 
@@ -173,9 +173,14 @@ function FormGuideContent() {
               setRequiereAntala(saved.requiereAntala);
               setInfluenciaPorterillo(saved.influenciaPorterillo || false);
               setInfluenciaCalle(saved.influenciaCalle || false);
-              setCalleTipo(saved.calleTipo || "Calle");
-              setCalleNombre(saved.calleNombre || "");
-              setCalleNumeros(saved.calleNumeros || [""]);
+              if (saved.callesList && saved.callesList.length > 0) {
+                setCallesList(saved.callesList);
+              } else if (saved.calleNombre) {
+                const numStr = saved.calleNumeros && saved.calleNumeros.length > 0 ? ` Nº ${saved.calleNumeros.join(", ")}` : "";
+                setCallesList([`${saved.calleTipo || "Calle"} ${saved.calleNombre}${numStr}`]);
+              } else {
+                setCallesList([""]);
+              }
               setInfluenciaOtros(saved.influenciaOtros || false);
               setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
             } catch (e) {
@@ -207,16 +212,16 @@ function FormGuideContent() {
     setSplitters(updated);
   };
 
-  // Portal/number handlers
-  const addCalleNumero = () => setCalleNumeros([...calleNumeros, ""]);
-  const removeCalleNumero = (index: number) => {
-    if (calleNumeros.length <= 1) return;
-    setCalleNumeros(calleNumeros.filter((_, i) => i !== index));
+  // Calles list handlers
+  const addCalle = () => setCallesList([...callesList, ""]);
+  const removeCalle = (index: number) => {
+    if (callesList.length <= 1) return;
+    setCallesList(callesList.filter((_, i) => i !== index));
   };
-  const updateCalleNumero = (index: number, val: string) => {
-    const updated = [...calleNumeros];
+  const updateCalle = (index: number, val: string) => {
+    const updated = [...callesList];
     updated[index] = val;
-    setCalleNumeros(updated);
+    setCallesList(updated);
   };
 
   // Check if form has modified data
@@ -339,10 +344,12 @@ function FormGuideContent() {
     if (influenciaPorterillo) {
       influenciaParts.push("Se adjunta foto del porterillo automático");
     }
-    if (influenciaCalle && calleNombre.trim()) {
-      const numbers = calleNumeros.filter(n => n.trim() !== "");
-      const numbersStr = numbers.length > 0 ? ` Nº ${numbers.join(", ")}` : "";
-      influenciaParts.push(`Vía pública: ${calleTipo} ${calleNombre.trim()}${numbersStr}`);
+    if (influenciaCalle) {
+      callesList.forEach(c => {
+        if (c.trim()) {
+          influenciaParts.push(`Vía pública: ${c.trim()}`);
+        }
+      });
     }
     if (influenciaOtros && influenciaOtrosTexto.trim()) {
       influenciaParts.push(`Otros: ${influenciaOtrosTexto.trim()}`);
@@ -404,9 +411,7 @@ function FormGuideContent() {
         requiereAntala,
         influenciaPorterillo,
         influenciaCalle,
-        calleTipo,
-        calleNombre,
-        calleNumeros: calleNumeros.filter(n => n.trim() !== ""),
+        callesList: callesList.filter(c => c.trim() !== ""),
         influenciaOtros,
         influenciaOtrosTexto,
         generatedComment: reportText
@@ -1094,8 +1099,6 @@ function FormGuideContent() {
                 </div>
               </div>
             )}
-
-            {/* STEP 6: ÁREA DE INFLUENCIA */}
             {currentStep === 6 && (
               <div>
                 <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
@@ -1125,73 +1128,38 @@ function FormGuideContent() {
                   </label>
 
                   {influenciaCalle && (
-                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
-                      
-                      <div style={{ display: "flex", gap: "10px" }}>
-                        <div style={{ width: "120px" }}>
-                          <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>{t.calleTipoLabel}</label>
-                          <select
-                            value={calleTipo}
-                            onChange={e => setCalleTipo(e.target.value)}
-                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem", outline: "none" }}
-                          >
-                            <option value="Calle">Calle</option>
-                            <option value="Avenida">Avenida</option>
-                            <option value="Plaza">Plaza</option>
-                            <option value="Pasaje">Pasaje</option>
-                            <option value="Carretera">Carretera</option>
-                          </select>
-                        </div>
-
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>{t.calleNombreLabel}</label>
+                    <div style={{ background: "rgba(15, 23, 42, 0.35)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
+                      {callesList.map((calle, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                           <input 
                             type="text"
-                            value={calleNombre}
-                            onChange={e => setCalleNombre(e.target.value)}
-                            placeholder="Ej: de Andalucía"
+                            value={calle}
+                            onChange={e => updateCalle(idx, e.target.value)}
+                            placeholder={lang === "es" ? "Ej: Calle de Andalucía 14" : "Наприклад: Андалузька вулиця 14"}
                             className="survey-input"
-                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
+                            style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
                           />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.calleNumerosLabel}</label>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                          {calleNumeros.map((num, idx) => (
-                            <div key={idx} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                              <input 
-                                type="text"
-                                value={num}
-                                onChange={e => updateCalleNumero(idx, e.target.value)}
-                                placeholder="14"
-                                className="survey-input"
-                                style={{ width: "55px", padding: "6px 8px", borderRadius: "6px", background: "rgba(30, 41, 59, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", textAlign: "center", fontSize: "0.82rem" }}
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => removeCalleNumero(idx)}
-                                disabled={calleNumeros.length <= 1}
-                                style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "none", borderRadius: "6px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem", opacity: calleNumeros.length <= 1 ? 0.3 : 1 }}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ))}
-                          
                           <button 
-                            type="button" 
-                            onClick={addCalleNumero}
-                            style={{
-                              padding: "4px 10px", background: "none", border: "1px dashed rgba(59, 130, 246, 0.4)", color: "#60a5fa",
-                              borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer"
-                            }}
+                            type="button"
+                            onClick={() => removeCalle(idx)}
+                            disabled={callesList.length <= 1}
+                            style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "none", borderRadius: "8px", width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "0.85rem", opacity: callesList.length <= 1 ? 0.3 : 1 }}
                           >
-                            ➕ {t.addCalleNumBtn}
+                            ✕
                           </button>
                         </div>
-                      </div>
+                      ))}
+                      
+                      <button 
+                        type="button" 
+                        onClick={addCalle}
+                        style={{
+                          alignSelf: "flex-start", padding: "6px 12px", background: "none", border: "1px dashed rgba(59, 130, 246, 0.4)", color: "#60a5fa",
+                          borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px"
+                        }}
+                      >
+                        <span>+</span> {lang === "es" ? "Añadir otra calle" : "Додати іншу вулицю"}
+                      </button>
                     </div>
                   )}
 
