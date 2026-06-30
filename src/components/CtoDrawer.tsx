@@ -59,6 +59,37 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [cacheKey, setCacheKey] = useState(Date.now());
   const [zoomScale, setZoomScale] = useState(1);
   const [showFormSheetModal, setShowFormSheetModal] = useState(false);
+  const [deletingForm, setDeletingForm] = useState(false);
+
+  const handleDeleteForm = async () => {
+    if (!confirm("¿Estás seguro de que deseas eliminar permanentemente el cuestionario de esta CTO? Esto también borrará los datos del formulario guardados.")) return;
+    setDeletingForm(true);
+    try {
+      const res = await fetch(`/api/ctos/${cto.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formDataJson: null,
+          hasFormulario: false
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDetails(updated);
+        setHasFormulario(false);
+        onUpdate(updated);
+        alert("Cuestionario eliminado correctamente.");
+        setShowFormSheetModal(false);
+      } else {
+        alert("Error al eliminar el cuestionario.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de conexión con el servidor.");
+    } finally {
+      setDeletingForm(false);
+    }
+  };
 
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
@@ -481,7 +512,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     opacity: cto.urlFicha ? 1 : 0.6
                   }}
                 >
-                  🔗 UserSide
+                  UserSide
                 </button>
                 <button 
                   type="button"
@@ -489,7 +520,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#3b82f6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                 >
-                  📡 Antala
+                  Antala
                 </button>
               </div>
             </div>
@@ -1417,11 +1448,22 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
             {/* Footer */}
             <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "10px" }}>
+              {details?.formDataJson && (
+                <button 
+                  type="button" 
+                  onClick={handleDeleteForm} 
+                  disabled={deletingForm}
+                  className="btn" 
+                  style={{ flex: 1, background: "#ef4444", color: "white", justifyContent: "center", fontWeight: 700 }}
+                >
+                  {deletingForm ? "Borrando..." : "Borrar Formulario"}
+                </button>
+              )}
               <button 
                 type="button" 
                 onClick={() => setShowFormSheetModal(false)} 
                 className="btn btn-primary" 
-                style={{ width: "100%", justifyContent: "center" }}
+                style={{ flex: 2, justifyContent: "center" }}
               >
                 Entendido
               </button>

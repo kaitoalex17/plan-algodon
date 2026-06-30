@@ -84,6 +84,9 @@ function FormGuideContent() {
 
   // Result modal state
   const [generatedComment, setGeneratedComment] = useState("");
+  const [commentPart1, setCommentPart1] = useState("");
+  const [commentPart2, setCommentPart2] = useState("");
+  const [commentPart3, setCommentPart3] = useState("");
   const [showResultModal, setShowResultModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -249,10 +252,8 @@ function FormGuideContent() {
     }
   };
 
-  const generateReportText = () => {
-    const lines: string[] = [];
-
-    // Cargar plantillas dinámicas desde la configuración
+  const generateReportParts = () => {
+    const part1Lines: string[] = [];
     const templates = config.templates || {};
     const ubiPrefix = templates.ubicacion_prefix || "Ubicación de la caja CTO";
     const danosPrefix = templates.danos_prefix || "Estado de la CTO";
@@ -264,10 +265,9 @@ function FormGuideContent() {
     const antalaFailed = config.antala?.text_failed || "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:";
     const influenciaTitle = templates.influencia_title || "Área de influencia";
 
-    // 1. Ubicación (Optional - omitted if blank)
-    let finalUbi = "";
+    // 1. Ubicación
     if (ubicacionOption) {
-      finalUbi = ubicacionOption;
+      let finalUbi = ubicacionOption;
       const details: string[] = [];
       if (ubicacionPlantaTipo && ubicacionPlantaTipo !== "Sin especificar") {
         details.push(ubicacionPlantaTipo);
@@ -280,45 +280,42 @@ function FormGuideContent() {
       } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
         finalUbi = ubicacionOtros.trim();
       }
-      lines.push(`- ${ubiPrefix}: ${finalUbi}`);
+      part1Lines.push(`- ${ubiPrefix}: ${finalUbi}`);
     }
 
-    // 2. Daños (Optional - omitted if blank or No)
+    // 2. Daños
     if (tieneDanos === true) {
       const selectedDanos: string[] = [];
       const keysMap: Record<DamageKey, string> = {
         tapa: "Le falta la tapa",
-        rotos: "Tiene cables rotos o dañados",
+        rotos: "Tiene cables rotos o daños",
         doblados: "Tiene cables doblados",
         cerrar: "No se puede cerrar",
         sucia: "Está sucia y/o llena de agua",
         enfrentadores: "Le faltan enfrentadores",
         splitterRoto: "Tiene los divisores/splitter rotos"
       };
-
       (Object.keys(danosChecked) as DamageKey[]).forEach(k => {
         if (danosChecked[k]) selectedDanos.push(keysMap[k]);
       });
-
       if (selectedDanos.length > 0) {
-        lines.push(`- ${danosPrefix}: ${selectedDanos.join(", ")}`);
+        part1Lines.push(`- ${danosPrefix}: ${selectedDanos.join(", ")}`);
       }
     }
 
-    // 3. Llaves (Optional - omitted if blank or No)
+    // 3. Llaves
     if (requiereLlaves === true) {
       const contacts: string[] = [];
       if (llavesNombre.trim()) contacts.push(`${llavesPresident}: ${llavesNombre.trim()}`);
       if (llavesTelefono.trim()) contacts.push(`${llavesPhone}: ${llavesTelefono.trim()}`);
-      
       const contactStr = contacts.length > 0 ? contacts.join(" - ") : llavesNodata;
-      lines.push(`- ${llavesPrefix}. ${contactStr}`);
+      part1Lines.push(`- ${llavesPrefix}. ${contactStr}`);
     }
 
+    // 4. Antala
     const threshold = config.threshold || 22.99;
     const noSignalVal = config.noSignalValue || 70.0;
     const antalaErrors: string[] = [];
-
     splitters.forEach((s, idx) => {
       if (!s.signal) return;
       const clean = s.signal.trim().replace(",", ".");
@@ -331,29 +328,23 @@ function FormGuideContent() {
         }
       }
     });
-
     if (requiereAntala === true) {
       if (antalaErrors.length > 0) {
-        lines.push(`- ${antalaFailed}\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
+        part1Lines.push(`- ${antalaFailed}\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
       } else {
-        lines.push(`- ${antalaYes}`);
+        part1Lines.push(`- ${antalaYes}`);
       }
     }
 
-    // Space and Splitters (only the numbers!)
+    // 5. Señales de Splitters
     const signalNumbers = splitters
       .map(s => s.signal.trim())
       .filter(s => s !== "")
       .map(s => s.startsWith("-") ? s : `-${s}`);
+    const part2Text = signalNumbers.join("\n");
 
-    if (signalNumbers.length > 0) {
-      // Large space after sincronismo (dos saltos de línea)
-      lines.push(`\n\n${signalNumbers.join("\n")}\n\n`);
-    } else {
-      lines.push("\n");
-    }
-
-    // 6. Área de influencia (Optional - omitted if blank)
+    // 6. Área de influencia
+    const part3Lines: string[] = [];
     const influenciaParts: string[] = [];
     if (influenciaPorterillo) {
       influenciaParts.push("Se adjunta foto del porterillo automático");
@@ -368,18 +359,34 @@ function FormGuideContent() {
     if (influenciaOtros && influenciaOtrosTexto.trim()) {
       influenciaParts.push(`Otros: ${influenciaOtrosTexto.trim()}`);
     }
-
     if (influenciaParts.length > 0) {
-      lines.push(`- ${influenciaTitle}:`);
-      influenciaParts.forEach(ip => lines.push(`  * ${ip}`));
+      part3Lines.push(`- ${influenciaTitle}:`);
+      influenciaParts.forEach(ip => part3Lines.push(`  * ${ip}`));
     }
 
-    return lines.join("\n");
+    return {
+      part1: part1Lines.join("\n"),
+      part2: part2Text,
+      part3: part3Lines.join("\n")
+    };
+  };
+
+  const generateReportText = () => {
+    const { part1, part2, part3 } = generateReportParts();
+    const parts = [];
+    if (part1) parts.push(part1);
+    if (part2) parts.push(`\n\n${part2}\n\n`);
+    if (part3) parts.push(part3);
+    return parts.join("\n");
   };
 
   const handleSaveAndShow = async () => {
     const reportText = generateReportText();
+    const { part1, part2, part3 } = generateReportParts();
     setGeneratedComment(reportText);
+    setCommentPart1(part1);
+    setCommentPart2(part2);
+    setCommentPart3(part3);
     setShowResultModal(true);
     setSaving(true);
 
@@ -1246,40 +1253,97 @@ function FormGuideContent() {
       {/* RESULT MODAL (COPY COMMENT) */}
       {showResultModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(5, 8, 16, 0.9)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-          <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "var(--card-bg, rgba(30, 41, 59, 0.5))", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "24px", color: "var(--text-color, white)", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}>
+          <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "var(--card-bg, rgba(30, 41, 59, 0.5))", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "24px", color: "var(--text-color, white)", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)", maxHeight: "90vh", overflowY: "auto" }}>
             
             <h3 style={{ margin: "0 0 10px 0", fontSize: "1.25rem", fontWeight: 800, color: "#34d399", letterSpacing: "-0.02em" }}>
-              {saving ? "Guardando formulario..." : "¡Comentario Generado y Guardado!"}
+              {saving ? "Guardando..." : "¡Cuestionario Guardado!"}
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0", lineHeight: "1.5" }}>
-              El cuestionario ha sido registrado en la CTO {ctoNum} y se ha guardado el comentario en el muro. Puedes copiar el texto generado para compartirlo:
+              El cuestionario ha sido registrado en la CTO {ctoNum}. Copia las secciones necesarias para completar las pantallas correspondientes:
             </p>
 
-            <textarea 
-              readOnly
-              value={generatedComment}
-              rows={8}
-              style={{
-                width: "100%", padding: "12px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "12px",
-                color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.82rem", resize: "none", marginBottom: "20px", outline: "none"
-              }}
-            />
+            {/* Bloque 1 */}
+            {commentPart1 && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                  1. Datos de CTO y Antala:
+                </span>
+                <textarea 
+                  readOnly
+                  value={commentPart1}
+                  rows={4}
+                  style={{
+                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
+                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(commentPart1);
+                    alert("¡Datos y Antala copiados!");
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px", background: "var(--primary-color)" }}
+                >
+                  Copiar Sección 1
+                </button>
+              </div>
+            )}
 
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button
-                onClick={copyToClipboard}
-                className="btn btn-primary"
-                style={{ flex: 1.5, justifyContent: "center", fontWeight: 700, borderRadius: "12px", background: "var(--primary-color, #FF7900)" }}
-              >
-                Copiar Comentario
-              </button>
+            {/* Bloque 2 */}
+            {commentPart2 && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                  2. Señal:
+                </span>
+                <textarea 
+                  readOnly
+                  value={commentPart2}
+                  rows={2}
+                  style={{
+                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
+                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Bloque 3 */}
+            {commentPart3 && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                  3. Área de influencia:
+                </span>
+                <textarea 
+                  readOnly
+                  value={commentPart3}
+                  rows={3}
+                  style={{
+                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
+                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(commentPart3);
+                    alert("¡Área de influencia copiado!");
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px", background: "var(--primary-color)" }}
+                >
+                  Copiar Sección 3
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", borderTop: "1px solid var(--border-color)", paddingTop: "15px", marginTop: "15px" }}>
               <button
                 onClick={() => {
                   setShowResultModal(false);
                   window.close();
                 }}
                 className="btn"
-                style={{ flex: 1, background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px" }}
+                style={{ width: "100%", background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px", minHeight: "38px" }}
               >
                 Cerrar pestaña
               </button>
