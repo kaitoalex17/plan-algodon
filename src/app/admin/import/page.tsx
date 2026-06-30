@@ -19,6 +19,98 @@ export default function ImportPage() {
   const [clearSub, setClearSub] = useState(false);
   const [categorySub, setCategorySub] = useState<"AUDITORIA" | "PROGRAMADA">("AUDITORIA");
 
+  // Estados para importación de UserSide URLs
+  const [fileUserSide, setFileUserSide] = useState<File | null>(null);
+  const [loadingUserSide, setLoadingUserSide] = useState(false);
+  const [previewUserSide, setPreviewUserSide] = useState<any>(null);
+  const [resultUserSide, setResultUserSide] = useState<any>(null);
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+
+  const handleSelectUserSideFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFileUserSide(file);
+    setPreviewUserSide(null);
+    setResultUserSide(null);
+    setParsedRows([]);
+    if (!file) return;
+
+    setLoadingUserSide(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        
+        // Usamos raw: true y header: 1 para tener un array de arrays
+        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (rows.length < 2) {
+          throw new Error("El archivo está vacío o no contiene suficientes filas.");
+        }
+
+        const headers = (rows[0] || []).map(h => String(h).trim().toLowerCase());
+        
+        // Buscar columnas por cabecera
+        let ctoColIdx = headers.findIndex(h => h.includes("cto") || h === "numero" || h === "codigo");
+        let urlColIdx = headers.findIndex(h => h.includes("url_ficha") || h.includes("ficha") || h.includes("userside") || h.includes("url"));
+
+        // Si no se encuentran por cabecera, usar índices predeterminados: A (0) y O (14)
+        if (ctoColIdx === -1) ctoColIdx = 0;
+        if (urlColIdx === -1) urlColIdx = 14;
+
+        const list: any[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+          
+          const ctoNum = row[ctoColIdx] ? String(row[ctoColIdx]).trim() : "";
+          const urlFicha = row[urlColIdx] ? String(row[urlColIdx]).trim() : "";
+          
+          if (ctoNum) {
+            list.push({ ctoNum, urlFicha });
+          }
+        }
+
+        setParsedRows(list);
+
+        // Hacer la llamada dryRun
+        const res = await fetch("/api/admin/ctos/import-userside", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ctos: list, dryRun: true })
+        });
+        const json = await res.json();
+        setPreviewUserSide(json);
+      } catch (err: any) {
+        setResultUserSide({ error: err.message });
+      } finally {
+        setLoadingUserSide(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleConfirmUserSideImport = async () => {
+    if (parsedRows.length === 0) return;
+    setLoadingUserSide(true);
+    setResultUserSide(null);
+    try {
+      const res = await fetch("/api/admin/ctos/import-userside", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ctos: parsedRows, dryRun: false })
+      });
+      const json = await res.json();
+      setResultUserSide(json);
+      setPreviewUserSide(null); // Limpiar preview tras guardar
+    } catch (err: any) {
+      setResultUserSide({ error: err.message });
+    } finally {
+      setLoadingUserSide(false);
+    }
+  };
+
   const handleImportCtos = async () => {
     if (!fileCtos) return;
     setLoadingCtos(true);
@@ -258,6 +350,66 @@ export default function ImportPage() {
                 <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>Error: {resultSub.error}</p>
               ) : (
                 <p style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.85rem' }}>¡Éxito! Se crearon/actualizaron {resultSub.count} subestados correctamente.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Panel 3: Importar URLs de UserSide */}
+        <div className="glass-panel" style={{ padding: '2rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            3. Enlaces Ficha UserSide
+          </h2>
+          <p style={{ marginBottom: '1.5rem', color: '#475569', lineHeight: 1.5, fontSize: '0.85rem' }}>
+            Sube un Excel con enlaces a UserSide. Se usará la columna <strong>A (CTO)</strong> para identificar la caja y la columna <strong>O (URL_Ficha)</strong> para el enlace.
+          </p>
+          
+          <input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            onChange={handleSelectUserSideFile}
+            style={{ marginBottom: '1.5rem', width: '100%', padding: '10px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+          />
+
+          {previewUserSide && (
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255, 121, 0, 0.05)', borderRadius: '8px', border: '1.5px solid var(--primary-color)' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '8px' }}>Vista Previa de Importación:</h3>
+              <p style={{ fontSize: '0.8rem', margin: '4px 0' }}>• Filas detectadas en Excel: <strong>{previewUserSide.total}</strong></p>
+              <p style={{ fontSize: '0.8rem', margin: '4px 0', color: '#16a34a' }}>• Coinciden con CTOs en BD: <strong>{previewUserSide.matched}</strong></p>
+              <p style={{ fontSize: '0.8rem', margin: '4px 0', color: '#dc2626' }}>• CTOs no encontradas en BD: <strong>{previewUserSide.unmatched}</strong></p>
+              
+              {previewUserSide.unmatched > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <details style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Ver CTOs no encontradas ({previewUserSide.unmatched})</summary>
+                    <div style={{ maxHeight: '100px', overflowY: 'auto', background: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px', marginTop: '4px', fontFamily: 'monospace' }}>
+                      {previewUserSide.unmatchedList.join(', ')}
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              <button
+                onClick={handleConfirmUserSideImport}
+                disabled={previewUserSide.matched === 0 || loadingUserSide}
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: '1rem', minHeight: '38px', fontWeight: 700 }}
+              >
+                {loadingUserSide ? "Guardando..." : `Confirmar e Importar ${previewUserSide.matched} Enlaces`}
+              </button>
+            </div>
+          )}
+
+          {resultUserSide && (
+            <div style={{ marginTop: '1.5rem', padding: '1rem', background: resultUserSide.error ? '#fee2e2' : '#dcfce3', borderRadius: '8px', border: '1px solid ' + (resultUserSide.error ? '#fca5a5' : '#bbf7d0') }}>
+              {resultUserSide.error ? (
+                <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>Error: {resultUserSide.error}</p>
+              ) : (
+                <p style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.85rem' }}>¡Éxito! Se actualizaron {resultUserSide.count} enlaces de UserSide correctamente.</p>
               )}
             </div>
           )}

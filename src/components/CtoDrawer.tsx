@@ -453,6 +453,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   Ficha formulario
                 </button>
               </div>
+
+              <div style={{ display: "flex", gap: "8px", marginTop: "0.5rem" }}>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (cto.urlFicha) {
+                      window.open(cto.urlFicha, "_blank");
+                    } else {
+                      alert("Esta CTO no tiene enlazada ninguna ficha de UserSide.");
+                    }
+                  }}
+                  className="btn" 
+                  style={{ 
+                    flex: 1, 
+                    minHeight: "34px", 
+                    background: cto.urlFicha ? "#22c55e" : "#94a3b8", 
+                    color: "white", 
+                    fontSize: "0.8rem", 
+                    padding: "4px 8px", 
+                    fontWeight: 700, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    gap: "4px",
+                    cursor: cto.urlFicha ? "pointer" : "not-allowed",
+                    opacity: cto.urlFicha ? 1 : 0.6
+                  }}
+                >
+                  🔗 UserSide
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => window.open("https://teras.antalanae.com/cto", "_blank")}
+                  className="btn" 
+                  style={{ flex: 1, minHeight: "34px", background: "#3b82f6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                >
+                  📡 Antala
+                </button>
+              </div>
             </div>
 
             {/* Formulario de Auditoría */}
