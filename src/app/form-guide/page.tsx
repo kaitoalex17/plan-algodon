@@ -252,6 +252,18 @@ function FormGuideContent() {
   const generateReportText = () => {
     const lines: string[] = [];
 
+    // Cargar plantillas dinámicas desde la configuración
+    const templates = config.templates || {};
+    const ubiPrefix = templates.ubicacion_prefix || "Ubicación de la caja CTO";
+    const danosPrefix = templates.danos_prefix || "Estado de la CTO";
+    const llavesPrefix = templates.llaves_prefix || "Se requieren llaves para acceder a la CTO";
+    const llavesPresident = templates.llaves_president || "Presidente/Conserje";
+    const llavesPhone = templates.llaves_phone || "Teléfono";
+    const llavesNodata = templates.llaves_nodata || "Sin datos de contacto";
+    const antalaYes = config.antala?.text_yes || "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.";
+    const antalaFailed = config.antala?.text_failed || "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:";
+    const influenciaTitle = templates.influencia_title || "Área de influencia";
+
     // 1. Ubicación (Optional - omitted if blank)
     let finalUbi = "";
     if (ubicacionOption) {
@@ -268,7 +280,7 @@ function FormGuideContent() {
       } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
         finalUbi = ubicacionOtros.trim();
       }
-      lines.push(`- Ubicación de la caja CTO: ${finalUbi}`);
+      lines.push(`- ${ubiPrefix}: ${finalUbi}`);
     }
 
     // 2. Daños (Optional - omitted if blank or No)
@@ -289,18 +301,18 @@ function FormGuideContent() {
       });
 
       if (selectedDanos.length > 0) {
-        lines.push(`- Estado de la CTO: ${selectedDanos.join(", ")}`);
+        lines.push(`- ${danosPrefix}: ${selectedDanos.join(", ")}`);
       }
     }
 
     // 3. Llaves (Optional - omitted if blank or No)
     if (requiereLlaves === true) {
       const contacts: string[] = [];
-      if (llavesNombre.trim()) contacts.push(`Presidente/Conserje: ${llavesNombre.trim()}`);
-      if (llavesTelefono.trim()) contacts.push(`Teléfono: ${llavesTelefono.trim()}`);
+      if (llavesNombre.trim()) contacts.push(`${llavesPresident}: ${llavesNombre.trim()}`);
+      if (llavesTelefono.trim()) contacts.push(`${llavesPhone}: ${llavesTelefono.trim()}`);
       
-      const contactStr = contacts.length > 0 ? contacts.join(" - ") : "Sin datos de contacto";
-      lines.push(`- Se requieren llaves para acceder a la CTO. ${contactStr}`);
+      const contactStr = contacts.length > 0 ? contacts.join(" - ") : llavesNodata;
+      lines.push(`- ${llavesPrefix}. ${contactStr}`);
     }
 
     const threshold = config.threshold || 22.99;
@@ -322,9 +334,9 @@ function FormGuideContent() {
 
     if (requiereAntala === true) {
       if (antalaErrors.length > 0) {
-        lines.push(`- No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
+        lines.push(`- ${antalaFailed}\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
       } else {
-        lines.push("- Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
+        lines.push(`- ${antalaYes}`);
       }
     }
 
@@ -358,7 +370,7 @@ function FormGuideContent() {
     }
 
     if (influenciaParts.length > 0) {
-      lines.push("- Área de influencia:");
+      lines.push(`- ${influenciaTitle}:`);
       influenciaParts.forEach(ip => lines.push(`  * ${ip}`));
     }
 

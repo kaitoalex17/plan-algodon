@@ -25,6 +25,17 @@ export default function QuestionnaireAdminPage() {
   const [danosOptions, setDanosOptions] = useState<TranslationOption[]>([]);
   const [llavesOptions, setLlavesOptions] = useState<TranslationOption[]>([]);
 
+  // Plantillas de comentarios
+  const [tplUbiPrefix, setTplUbiPrefix] = useState("Ubicación de la caja CTO");
+  const [tplDanosPrefix, setTplDanosPrefix] = useState("Estado de la CTO");
+  const [tplLlavesPrefix, setTplLlavesPrefix] = useState("Se requieren llaves para acceder a la CTO");
+  const [tplLlavesPresident, setTplLlavesPresident] = useState("Presidente/Conserje");
+  const [tplLlavesPhone, setTplLlavesPhone] = useState("Teléfono");
+  const [tplLlavesNodata, setTplLlavesNodata] = useState("Sin datos de contacto");
+  const [tplInfluenciaTitle, setTplInfluenciaTitle] = useState("Área de influencia");
+  const [tplAntalaYes, setTplAntalaYes] = useState("Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
+  const [tplAntalaFailed, setTplAntalaFailed] = useState("No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:");
+
   useEffect(() => {
     if (authStatus === "authenticated") {
       const role = (session?.user as any)?.role;
@@ -48,6 +59,18 @@ export default function QuestionnaireAdminPage() {
         setUbicacionOptions(data.ubicacion?.options || []);
         setDanosOptions(data.danos?.options || []);
         setLlavesOptions(data.llaves?.options || []);
+
+        const templates = data.templates || {};
+        setTplUbiPrefix(templates.ubicacion_prefix || "Ubicación de la caja CTO");
+        setTplDanosPrefix(templates.danos_prefix || "Estado de la CTO");
+        setTplLlavesPrefix(templates.llaves_prefix || "Se requieren llaves para acceder a la CTO");
+        setTplLlavesPresident(templates.llaves_president || "Presidente/Conserje");
+        setTplLlavesPhone(templates.llaves_phone || "Teléfono");
+        setTplLlavesNodata(templates.llaves_nodata || "Sin datos de contacto");
+        setTplInfluenciaTitle(templates.influencia_title || "Área de influencia");
+        
+        setTplAntalaYes(data.antala?.text_yes || "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.");
+        setTplAntalaFailed(data.antala?.text_failed || "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:");
       }
     } catch (err) {
       console.error(err);
@@ -82,8 +105,8 @@ export default function QuestionnaireAdminPage() {
         antala: {
           label_es: "¿Se requiere Levantamiento en Antala?",
           label_uk: "Чи потрібне внесення в Antala?",
-          text_yes: "Se realiza sincronismo/levantamiento en Antala. Se realizan etiquetas de caja, cable y divisor.",
-          text_failed: "No se ha podido realizar el sincronismo/levantamiento en Antala debido a que:"
+          text_yes: tplAntalaYes,
+          text_failed: tplAntalaFailed
         },
         influencia: {
           label_es: "Área de influencia",
@@ -93,6 +116,15 @@ export default function QuestionnaireAdminPage() {
             { key: "calle", es: "Calle", uk: "Вулиця" },
             { key: "otros", es: "Otros", uk: "Інше" }
           ]
+        },
+        templates: {
+          ubicacion_prefix: tplUbiPrefix,
+          danos_prefix: tplDanosPrefix,
+          llaves_prefix: tplLlavesPrefix,
+          llaves_president: tplLlavesPresident,
+          llaves_phone: tplLlavesPhone,
+          llaves_nodata: tplLlavesNodata,
+          influencia_title: tplInfluenciaTitle
         }
       };
 
@@ -310,6 +342,105 @@ export default function QuestionnaireAdminPage() {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* PLANTILLAS DE COMENTARIOS */}
+          <div className="glass-panel" style={{ padding: "1.5rem" }}>
+            <h2 style={{ fontSize: "1.15rem", fontWeight: 800, marginBottom: "1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+              Plantillas del Comentario Generado
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Prefijo de Ubicación:</label>
+                <input 
+                  type="text" 
+                  value={tplUbiPrefix} 
+                  onChange={e => setTplUbiPrefix(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Prefijo de Daños/Estado:</label>
+                <input 
+                  type="text" 
+                  value={tplDanosPrefix} 
+                  onChange={e => setTplDanosPrefix(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Texto de Llaves requeridas:</label>
+                <input 
+                  type="text" 
+                  value={tplLlavesPrefix} 
+                  onChange={e => setTplLlavesPrefix(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Etiqueta de Presidente/Conserje:</label>
+                <input 
+                  type="text" 
+                  value={tplLlavesPresident} 
+                  onChange={e => setTplLlavesPresident(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Etiqueta de Teléfono:</label>
+                <input 
+                  type="text" 
+                  value={tplLlavesPhone} 
+                  onChange={e => setTplLlavesPhone(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Texto "Sin datos de contacto":</label>
+                <input 
+                  type="text" 
+                  value={tplLlavesNodata} 
+                  onChange={e => setTplLlavesNodata(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Título de Área de Influencia:</label>
+                <input 
+                  type="text" 
+                  value={tplInfluenciaTitle} 
+                  onChange={e => setTplInfluenciaTitle(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Texto de Sincronismo Antala Exitoso:</label>
+                <input 
+                  type="text" 
+                  value={tplAntalaYes} 
+                  onChange={e => setTplAntalaYes(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: "8px 12px", minHeight: "38px" }}
+                />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: "6px" }}>Texto de Sincronismo Antala Fallido:</label>
+                <textarea 
+                  value={tplAntalaFailed} 
+                  onChange={e => setTplAntalaFailed(e.target.value)} 
+                  className="input-field" 
+                  rows={2}
+                  style={{ padding: "8px 12px", fontFamily: "inherit" }}
+                />
+              </div>
             </div>
           </div>
 

@@ -69,6 +69,17 @@ const DEFAULT_CONFIG = {
       { key: "calle", es: "Calle", uk: "Вулиця" },
       { key: "otros", es: "Otros", uk: "Інше" }
     ]
+  },
+
+  // Plantillas de comentarios
+  templates: {
+    ubicacion_prefix: "Ubicación de la caja CTO",
+    danos_prefix: "Estado de la CTO",
+    llaves_prefix: "Se requieren llaves para acceder a la CTO",
+    llaves_president: "Presidente/Conserje",
+    llaves_phone: "Teléfono",
+    llaves_nodata: "Sin datos de contacto",
+    influencia_title: "Área de influencia"
   }
 };
 
