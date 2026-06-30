@@ -75,8 +75,7 @@ const DEFAULT_CONFIG = {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role;
-    if (!session || (role !== "ADMIN" && role !== "GESTOR")) {
+    if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
