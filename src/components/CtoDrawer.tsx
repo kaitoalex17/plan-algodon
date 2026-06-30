@@ -91,6 +91,26 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   };
 
+  const [fetchingFormSheet, setFetchingFormSheet] = useState(false);
+
+  const handleOpenFormSheet = async () => {
+    if (!cto?.id) return;
+    setFetchingFormSheet(true);
+    try {
+      const res = await fetch(`/api/ctos/${cto.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetails(data);
+        setHasFormulario(data.hasFormulario);
+      }
+    } catch (err) {
+      console.error("Error al refrescar ficha formulario:", err);
+    } finally {
+      setFetchingFormSheet(false);
+      setShowFormSheetModal(true);
+    }
+  };
+
   // Fetch complete details of this specific CTO
   const fetchCtoDetails = useCallback(async () => {
     if (!cto?.id) return;
@@ -477,11 +497,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setShowFormSheetModal(true)}
+                  onClick={handleOpenFormSheet}
+                  disabled={fetchingFormSheet}
                   className="btn" 
-                  style={{ flex: 1, minHeight: "34px", background: "#a855f7", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                  style={{ flex: 1, minHeight: "34px", background: "#a855f7", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: fetchingFormSheet ? 0.7 : 1 }}
                 >
-                  Ficha formulario
+                  {fetchingFormSheet ? "Refrescando..." : "Ficha formulario"}
                 </button>
               </div>
 
