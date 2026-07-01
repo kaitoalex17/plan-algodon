@@ -139,7 +139,7 @@ export default function AdminPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Panel de Administración</h1>
-          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Plan Algodón v2.0 — Control Completo del Servidor</p>
+          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Plan Algodón v2.8 — Control Completo del Servidor</p>
         </div>
         <Link href="/" className="btn btn-primary">Volver al Mapa</Link>
       </div>
@@ -326,7 +326,7 @@ export default function AdminPage() {
         borderTop: "1px solid var(--border-color)",
         paddingTop: "1rem"
       }}>
-        Plan Algodón - Versión 2.0.0
+        Plan Algodón - Versión 2.8.0
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 
 // Función para generar iconos SVG personalizados según forma y tamaño
-function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string) {
+function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, isAceptada?: boolean) {
   const s = size * 2 + 8; // Espacio suficiente para bordes
   const center = s / 2;
   const radius = size;
@@ -40,6 +40,11 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
   } else {
     // Circle por defecto
     svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" />`;
+  }
+
+  if (isAceptada) {
+    const dotRadius = Math.max(1.5, size * 0.35); // Small dot
+    svgContent += `<circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol || "#10b981"}" />`;
   }
 
   return L.divIcon({
@@ -191,12 +196,13 @@ function CtoMarkers({
           "#ef4444"
         );
         const fillColor = cto.assignedTo?.color || "#ffffff";
+        const isAceptada = cto.subStatus?.name?.trim().toUpperCase().includes("ACEPTADA") || cto.subStatus?.name?.trim().toUpperCase().includes("ACEPTADAS");
 
         return (
           <Marker 
             key={cto.id}
             position={[cto.lat, cto.lng]}
-            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor)}
+            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, isAceptada)}
             eventHandlers={{
               click: () => onCtoClick(cto)
             }}

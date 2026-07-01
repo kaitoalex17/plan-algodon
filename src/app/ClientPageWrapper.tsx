@@ -1248,7 +1248,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               borderTop: "1px solid var(--border-color)",
               paddingTop: "12px"
             }}>
-              Plan Algodón - Versión 1.7.7
+              Plan Algodón - Versión 2.8.0
             </div>
           </div>
         </div>

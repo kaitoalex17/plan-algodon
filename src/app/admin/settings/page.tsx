@@ -327,7 +327,7 @@ export default function AdminSettingsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 700 }}>⚙️ Ajustes del Sistema</h1>
-          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Plan Algodón v2.0 — Panel de Control de Configuración</p>
+          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Plan Algodón v2.8 — Panel de Control de Configuración</p>
         </div>
         <Link href="/admin" className="btn btn-primary">Volver al Panel</Link>
       </div>
