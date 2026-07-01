@@ -3,12 +3,22 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 
 // Función para generar iconos SVG personalizados según forma y tamaño
-function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, isCorrecto?: boolean) {
+function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, status?: string) {
   const s = size * 2 + 8; // Espacio suficiente para bordes
   const center = s / 2;
   const radius = size;
   
   let svgContent = "";
+  
+  // Defs block for the stripe pattern
+  const defsBlock = `
+    <defs>
+      <pattern id="stripe-pattern" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2.2" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#10b981" stroke-width="1.0" />
+      </pattern>
+    </defs>
+  `;
   
   if (shape === "square") {
     svgContent = `<rect x="${center - radius}" y="${center - radius}" width="${radius * 2}" height="${radius * 2}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" rx="1.5" />`;
@@ -42,17 +52,41 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
     svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" />`;
   }
 
-  if (status === "CORRECTO" || status === "REVISADO") {
-    // Striped pattern (rayado con lineas muy finas con contorno blanco)
-    svgContent += `
-      <line x1="${center - radius}" y1="${center}" x2="${center}" y2="${center - radius}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
-      <line x1="${center - radius}" y1="${center + radius}" x2="${center + radius}" y2="${center - radius}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
-      <line x1="${center}" y1="${center + radius}" x2="${center + radius}" y2="${center}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
-      
-      <line x1="${center - radius}" y1="${center}" x2="${center}" y2="${center - radius}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
-      <line x1="${center - radius}" y1="${center + radius}" x2="${center + radius}" y2="${center - radius}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
-      <line x1="${center}" y1="${center + radius}" x2="${center + radius}" y2="${center}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
-    `;
+  const isCorrecto = status === "CORRECTO" || status === "REVISADO";
+  if (isCorrecto) {
+    let stripeOverlay = "";
+    if (shape === "square") {
+      stripeOverlay = `<rect x="${center - radius}" y="${center - radius}" width="${radius * 2}" height="${radius * 2}" fill="url(#stripe-pattern)" stroke="none" rx="1.5" />`;
+    } else if (shape === "triangle") {
+      const p1 = `${center},${center - radius}`;
+      const p2 = `${center - radius},${center + radius}`;
+      const p3 = `${center + radius},${center + radius}`;
+      stripeOverlay = `<polygon points="${p1} ${p2} ${p3}" fill="url(#stripe-pattern)" stroke="none" />`;
+    } else if (shape === "diamond") {
+      const p1 = `${center},${center - radius}`;
+      const p2 = `${center + radius},${center}`;
+      const p3 = `${center},${center + radius}`;
+      const p4 = `${center - radius},${center}`;
+      stripeOverlay = `<polygon points="${p1} ${p2} ${p3} ${p4}" fill="url(#stripe-pattern)" stroke="none" />`;
+    } else if (shape === "star") {
+      const points = [
+        [center, center - radius],
+        [center + radius * 0.24, center - radius * 0.24],
+        [center + radius * 0.95, center - radius * 0.31],
+        [center + radius * 0.38, center + radius * 0.12],
+        [center + radius * 0.59, center + radius * 0.81],
+        [center, center + radius * 0.44],
+        [center - radius * 0.59, center + radius * 0.81],
+        [center - radius * 0.38, center + radius * 0.12],
+        [center - radius * 0.95, center - radius * 0.31],
+        [center - radius * 0.24, center - radius * 0.24]
+      ].map(p => p.join(",")).join(" ");
+      stripeOverlay = `<polygon points="${points}" fill="url(#stripe-pattern)" stroke="none" />`;
+    } else {
+      stripeOverlay = `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#stripe-pattern)" stroke="none" />`;
+    }
+    
+    svgContent += stripeOverlay;
   } else if (status === "FALLO") {
     // Fallo pattern (reborde interior de color blanco y algunas lineas o patron de color rojo indicando fallo)
     let innerWhiteBorder = "";
@@ -85,7 +119,7 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
   }
 
   return L.divIcon({
-    html: `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">${svgContent}</svg>`,
+    html: `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">${defsBlock}${svgContent}</svg>`,
     className: "custom-map-marker",
     iconSize: [s, s],
     iconAnchor: [center, center],
