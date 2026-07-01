@@ -42,16 +42,45 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
     svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" />`;
   }
 
-  if (isCorrecto) {
-    const dotRadius = Math.max(0.8, size * 0.15); // Puntos muy pequeños
-    const offset = size * 0.45;
-    // 5 puntitos internos (patrón de dado) para distinguir
+  if (status === "CORRECTO" || status === "REVISADO") {
+    // Striped pattern (rayado con lineas muy finas con contorno blanco)
     svgContent += `
-      <circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol}" />
-      <circle cx="${center - offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" />
-      <circle cx="${center + offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" />
-      <circle cx="${center - offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" />
-      <circle cx="${center + offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" />
+      <line x1="${center - radius}" y1="${center}" x2="${center}" y2="${center - radius}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+      <line x1="${center - radius}" y1="${center + radius}" x2="${center + radius}" y2="${center - radius}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+      <line x1="${center}" y1="${center + radius}" x2="${center + radius}" y2="${center}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+      
+      <line x1="${center - radius}" y1="${center}" x2="${center}" y2="${center - radius}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
+      <line x1="${center - radius}" y1="${center + radius}" x2="${center + radius}" y2="${center - radius}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
+      <line x1="${center}" y1="${center + radius}" x2="${center + radius}" y2="${center}" stroke="${borderCol}" stroke-width="1.2" stroke-linecap="round" />
+    `;
+  } else if (status === "FALLO") {
+    // Fallo pattern (reborde interior de color blanco y algunas lineas o patron de color rojo indicando fallo)
+    let innerWhiteBorder = "";
+    if (shape === "square") {
+      innerWhiteBorder = `<rect x="${center - radius + 1.5}" y="${center - radius + 1.5}" width="${(radius - 1.5) * 2}" height="${(radius - 1.5) * 2}" fill="none" stroke="#ffffff" stroke-width="1.5" rx="1" />`;
+    } else if (shape === "triangle") {
+      const p1 = `${center},${center - radius + 2.5}`;
+      const p2 = `${center - radius + 2},${center + radius - 1.5}`;
+      const p3 = `${center + radius - 2},${center + radius - 1.5}`;
+      innerWhiteBorder = `<polygon points="${p1} ${p2} ${p3}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />`;
+    } else if (shape === "diamond") {
+      const p1 = `${center},${center - radius + 2.5}`;
+      const p2 = `${center + radius - 2.5},${center}`;
+      const p3 = `${center},${center + radius - 2.5}`;
+      const p4 = `${center - radius + 2.5},${center}`;
+      innerWhiteBorder = `<polygon points="${p1} ${p2} ${p3} ${p4}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />`;
+    } else {
+      innerWhiteBorder = `<circle cx="${center}" cy="${center}" r="${radius - 1.5}" fill="none" stroke="#ffffff" stroke-width="1.5" />`;
+    }
+
+    svgContent += `
+      ${innerWhiteBorder}
+      <!-- Red cross indicating failure with white outline -->
+      <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+      <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+      
+      <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
+      <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
     `;
   }
 
@@ -204,13 +233,13 @@ function CtoMarkers({
           "#ef4444"
         );
         const fillColor = cto.assignedTo?.color || "#ffffff";
-        const isCorrecto = cto.status === "CORRECTO";
+        const status = cto.status;
 
         return (
           <Marker 
             key={cto.id}
             position={[cto.lat, cto.lng]}
-            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, isCorrecto)}
+            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, status)}
             eventHandlers={{
               click: () => onCtoClick(cto)
             }}

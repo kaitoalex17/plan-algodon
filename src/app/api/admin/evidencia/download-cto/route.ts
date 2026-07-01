@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const role = (session?.user as any)?.role;
-    if (role !== "ADMIN" && role !== "GESTOR") {
+    if (role !== "ADMIN" && role !== "GESTOR" && role !== "AUDITOR") {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 

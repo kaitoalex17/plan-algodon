@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       if (ext && ["jpg", "jpeg", "png", "webp"].includes(ext)) {
         try {
           let pipeline = sharp(buffer)
+            .rotate()
             .resize({
               width: maxWidth,
               height: maxWidth,

@@ -876,6 +876,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   {saving ? "Guardando..." : "Cerrar y Guardar (Marcar Correcto)"}
                 </button>
               </div>
+
+              {/* COMENTARIO RÁPIDO DUPLICADO AL FINAL */}
+              <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "1rem", marginTop: "1rem", marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Añadir Comentario rápido al Historial</label>
+                <textarea 
+                  className="input-field" 
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  placeholder="Escribe comentarios de la visita..." 
+                  style={{ minHeight: "50px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
+                />
+              </div>
             </form>
 
           </div>
@@ -1034,17 +1046,39 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </svg>
               Galería de Evidencias - CTO {cto.num}
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowGallery(false)}
-              className="btn"
-              style={{
-                minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)",
-                borderRadius: "8px", cursor: "pointer", fontWeight: 700
-              }}
-            >
-              ✕ Cerrar
-            </button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {details?.images && details.images.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`/api/admin/evidencia/download-cto?ctoId=${cto.id}`, "_blank");
+                  }}
+                  className="btn btn-primary"
+                  style={{
+                    minHeight: "36px", padding: "6px 12px", background: "var(--primary-color, #FF7900)", color: "white",
+                    borderRadius: "8px", cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px"
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Descargar todo (.zip)
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowGallery(false)}
+                className="btn"
+                style={{
+                  minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)",
+                  borderRadius: "8px", cursor: "pointer", fontWeight: 700
+                }}
+              >
+                ✕ Cerrar
+              </button>
+            </div>
           </div>
 
           {/* Grid de imágenes */}
