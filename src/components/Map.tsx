@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 
 // Función para generar iconos SVG personalizados según forma y tamaño
-function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, isAceptada?: boolean) {
+function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, isCorrecto?: boolean) {
   const s = size * 2 + 8; // Espacio suficiente para bordes
   const center = s / 2;
   const radius = size;
@@ -42,9 +42,17 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
     svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="2" />`;
   }
 
-  if (isAceptada) {
-    const dotRadius = Math.max(1.5, size * 0.35); // Small dot
-    svgContent += `<circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol || "#10b981"}" />`;
+  if (isCorrecto) {
+    const dotRadius = Math.max(0.8, size * 0.15); // Puntos muy pequeños
+    const offset = size * 0.45;
+    // 5 puntitos internos (patrón de dado) para distinguir
+    svgContent += `
+      <circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol}" />
+      <circle cx="${center - offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" />
+      <circle cx="${center + offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" />
+      <circle cx="${center - offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" />
+      <circle cx="${center + offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" />
+    `;
   }
 
   return L.divIcon({
@@ -196,13 +204,13 @@ function CtoMarkers({
           "#ef4444"
         );
         const fillColor = cto.assignedTo?.color || "#ffffff";
-        const isAceptada = cto.subStatus?.name?.trim().toUpperCase().includes("ACEPTADA") || cto.subStatus?.name?.trim().toUpperCase().includes("ACEPTADAS");
+        const isCorrecto = cto.status === "CORRECTO";
 
         return (
           <Marker 
             key={cto.id}
             position={[cto.lat, cto.lng]}
-            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, isAceptada)}
+            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, isCorrecto)}
             eventHandlers={{
               click: () => onCtoClick(cto)
             }}
