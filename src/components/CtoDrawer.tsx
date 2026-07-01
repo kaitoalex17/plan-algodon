@@ -877,9 +877,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </button>
               </div>
 
-              {/* COMENTARIO RÁPIDO DUPLICADO AL FINAL */}
-              <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "1rem", marginTop: "1rem", marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Añadir Comentario rápido al Historial</label>
+              {/* COMENTARIO RÁPIDO Y MURO AL FINAL */}
+              <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "1rem", marginTop: "1.5rem" }}>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>
+                  Añadir Comentario rápido al Historial:
+                </label>
                 <textarea 
                   className="input-field" 
                   value={commentText}
@@ -887,6 +889,84 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   placeholder="Escribe comentarios de la visita..." 
                   style={{ minHeight: "50px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 />
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!commentText.trim()) return;
+                      setSaving(true);
+                      try {
+                        const res = await fetch(`/api/ctos/${cto.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ commentText }),
+                        });
+                        if (res.ok) {
+                          setCommentText("");
+                          fetchCtoDetails();
+                        } else {
+                          alert("Error al guardar el comentario");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{ minHeight: "32px", padding: "4px 12px", fontSize: "0.8rem", width: "auto" }}
+                    disabled={saving || !commentText.trim()}
+                  >
+                    {saving ? "Guardando..." : "Comentar"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Muro de Comentarios integrado */}
+              <div style={{ background: "var(--card-bg)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color)", marginTop: "1rem" }}>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px", color: "var(--text-color)" }}>
+                  Muro de Comentarios ({details?.comments?.length || 0})
+                </h3>
+                {details?.comments && details.comments.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto", paddingRight: "4px" }}>
+                    {details.comments.map((comm: any) => (
+                      <div key={comm.id} style={{ background: "var(--bg-color)", padding: "8px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "var(--text-color)", opacity: 0.7, marginBottom: "4px" }}>
+                          <strong style={{ color: comm.user?.color || "inherit" }}>{comm.user?.name || "Técnico"}</strong>
+                          <span>{new Date(comm.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p style={{ fontSize: "0.8rem", margin: 0, color: "var(--text-color)", whiteSpace: "pre-wrap" }}>{comm.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
+                    No hay comentarios registrados
+                  </p>
+                )}
+              </div>
+
+              {/* Historial de Cambios integrado */}
+              <div style={{ background: "var(--card-bg)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color)", marginTop: "1rem", marginBottom: "1.5rem" }}>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px", color: "var(--text-color)" }}>
+                  Historial de Cambios ({details?.history?.length || 0})
+                </h3>
+                {details?.history && details.history.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto", paddingRight: "4px" }}>
+                    {details.history.map((hist: any) => (
+                      <div key={hist.id} style={{ fontSize: "0.75rem", color: "var(--text-color)", opacity: 0.8, display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "4px" }}>
+                        <span><strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}</span>
+                        <span style={{ fontSize: "0.7rem", flexShrink: 0, marginLeft: "10px" }}>
+                          {new Date(hist.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--text-color)", opacity: 0.7, fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
+                    No hay historial registrado
+                  </p>
+                )}
               </div>
             </form>
 

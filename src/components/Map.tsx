@@ -3,19 +3,39 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 
 // Función para generar iconos SVG personalizados según forma y tamaño
-function createCustomIcon(shape: string, size: number, borderCol: string, fillCol: string, status?: string) {
+function createCustomIcon(
+  shape: string, 
+  size: number, 
+  borderCol: string, 
+  fillCol: string, 
+  status?: string, 
+  patternCorrecto: string = "diagonal-stripes", 
+  patternFallo: string = "cross-pattern"
+) {
   const s = size * 2 + 8; // Espacio suficiente para bordes
   const center = s / 2;
   const radius = size;
   
   let svgContent = "";
   
-  // Defs block for the stripe pattern
+  // Defs block for the stripe patterns
   const defsBlock = `
     <defs>
-      <pattern id="stripe-pattern" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <pattern id="diagonal-stripes" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
         <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2.2" />
         <line x1="0" y1="0" x2="0" y2="6" stroke="#10b981" stroke-width="1.0" />
+      </pattern>
+      <pattern id="horizontal-stripes" width="6" height="6" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="6" y2="0" stroke="#ffffff" stroke-width="2.2" />
+        <line x1="0" y1="0" x2="6" y2="0" stroke="#10b981" stroke-width="1.0" />
+      </pattern>
+      <pattern id="vertical-stripes" width="6" height="6" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2.2" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#10b981" stroke-width="1.0" />
+      </pattern>
+      <pattern id="grid-pattern" width="6" height="6" patternUnits="userSpaceOnUse">
+        <rect width="6" height="6" fill="none" stroke="#ffffff" stroke-width="2.2" />
+        <rect width="6" height="6" fill="none" stroke="#10b981" stroke-width="1.0" />
       </pattern>
     </defs>
   `;
@@ -54,39 +74,50 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
 
   const isCorrecto = status === "CORRECTO" || status === "REVISADO";
   if (isCorrecto) {
-    let stripeOverlay = "";
-    if (shape === "square") {
-      stripeOverlay = `<rect x="${center - radius}" y="${center - radius}" width="${radius * 2}" height="${radius * 2}" fill="url(#stripe-pattern)" stroke="none" rx="1.5" />`;
-    } else if (shape === "triangle") {
-      const p1 = `${center},${center - radius}`;
-      const p2 = `${center - radius},${center + radius}`;
-      const p3 = `${center + radius},${center + radius}`;
-      stripeOverlay = `<polygon points="${p1} ${p2} ${p3}" fill="url(#stripe-pattern)" stroke="none" />`;
-    } else if (shape === "diamond") {
-      const p1 = `${center},${center - radius}`;
-      const p2 = `${center + radius},${center}`;
-      const p3 = `${center},${center + radius}`;
-      const p4 = `${center - radius},${center}`;
-      stripeOverlay = `<polygon points="${p1} ${p2} ${p3} ${p4}" fill="url(#stripe-pattern)" stroke="none" />`;
-    } else if (shape === "star") {
-      const points = [
-        [center, center - radius],
-        [center + radius * 0.24, center - radius * 0.24],
-        [center + radius * 0.95, center - radius * 0.31],
-        [center + radius * 0.38, center + radius * 0.12],
-        [center + radius * 0.59, center + radius * 0.81],
-        [center, center + radius * 0.44],
-        [center - radius * 0.59, center + radius * 0.81],
-        [center - radius * 0.38, center + radius * 0.12],
-        [center - radius * 0.95, center - radius * 0.31],
-        [center - radius * 0.24, center - radius * 0.24]
-      ].map(p => p.join(",")).join(" ");
-      stripeOverlay = `<polygon points="${points}" fill="url(#stripe-pattern)" stroke="none" />`;
+    if (patternCorrecto === "dotted-pattern") {
+      const dotRadius = Math.max(0.8, size * 0.15); // Puntos muy pequeños
+      const offset = size * 0.45;
+      svgContent += `
+        <circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+        <circle cx="${center - offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+        <circle cx="${center + offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+        <circle cx="${center - offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+        <circle cx="${center + offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+      `;
     } else {
-      stripeOverlay = `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#stripe-pattern)" stroke="none" />`;
+      let stripeOverlay = "";
+      if (shape === "square") {
+        stripeOverlay = `<rect x="${center - radius}" y="${center - radius}" width="${radius * 2}" height="${radius * 2}" fill="url(#${patternCorrecto})" stroke="none" rx="1.5" />`;
+      } else if (shape === "triangle") {
+        const p1 = `${center},${center - radius}`;
+        const p2 = `${center - radius},${center + radius}`;
+        const p3 = `${center + radius},${center + radius}`;
+        stripeOverlay = `<polygon points="${p1} ${p2} ${p3}" fill="url(#${patternCorrecto})" stroke="none" />`;
+      } else if (shape === "diamond") {
+        const p1 = `${center},${center - radius}`;
+        const p2 = `${center + radius},${center}`;
+        const p3 = `${center},${center + radius}`;
+        const p4 = `${center - radius},${center}`;
+        stripeOverlay = `<polygon points="${p1} ${p2} ${p3} ${p4}" fill="url(#${patternCorrecto})" stroke="none" />`;
+      } else if (shape === "star") {
+        const points = [
+          [center, center - radius],
+          [center + radius * 0.24, center - radius * 0.24],
+          [center + radius * 0.95, center - radius * 0.31],
+          [center + radius * 0.38, center + radius * 0.12],
+          [center + radius * 0.59, center + radius * 0.81],
+          [center, center + radius * 0.44],
+          [center - radius * 0.59, center + radius * 0.81],
+          [center - radius * 0.38, center + radius * 0.12],
+          [center - radius * 0.95, center - radius * 0.31],
+          [center - radius * 0.24, center - radius * 0.24]
+        ].map(p => p.join(",")).join(" ");
+        stripeOverlay = `<polygon points="${points}" fill="url(#${patternCorrecto})" stroke="none" />`;
+      } else {
+        stripeOverlay = `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#${patternCorrecto})" stroke="none" />`;
+      }
+      svgContent += stripeOverlay;
     }
-    
-    svgContent += stripeOverlay;
   } else if (status === "FALLO") {
     // Fallo pattern (reborde interior de color blanco y algunas lineas o patron de color rojo indicando fallo)
     let innerWhiteBorder = "";
@@ -107,15 +138,39 @@ function createCustomIcon(shape: string, size: number, borderCol: string, fillCo
       innerWhiteBorder = `<circle cx="${center}" cy="${center}" r="${radius - 1.5}" fill="none" stroke="#ffffff" stroke-width="1.5" />`;
     }
 
-    svgContent += `
-      ${innerWhiteBorder}
-      <!-- Red cross indicating failure with white outline -->
-      <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
-      <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
-      
-      <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
-      <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
-    `;
+    svgContent += innerWhiteBorder;
+
+    if (patternFallo === "cross-pattern") {
+      svgContent += `
+        <!-- Red cross indicating failure with white outline -->
+        <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+        <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+        <line x1="${center - radius * 0.4}" y1="${center - radius * 0.4}" x2="${center + radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="${center + radius * 0.4}" y1="${center - radius * 0.4}" x2="${center - radius * 0.4}" y2="${center + radius * 0.4}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
+      `;
+    } else if (patternFallo === "slash-pattern") {
+      svgContent += `
+        <line x1="${center - radius * 0.4}" y1="${center + radius * 0.4}" x2="${center + radius * 0.4}" y2="${center - radius * 0.4}" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+        <line x1="${center - radius * 0.4}" y1="${center + radius * 0.4}" x2="${center + radius * 0.4}" y2="${center - radius * 0.4}" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" />
+      `;
+    } else if (patternFallo === "alert-pattern") {
+      svgContent += `
+        <line x1="${center}" y1="${center - radius * 0.5}" x2="${center}" y2="${center + radius * 0.1}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+        <line x1="${center}" y1="${center - radius * 0.5}" x2="${center}" y2="${center + radius * 0.1}" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
+        <circle cx="${center}" cy="${center + radius * 0.5}" r="1.5" fill="#ffffff" />
+        <circle cx="${center}" cy="${center + radius * 0.5}" r="0.8" fill="#ef4444" />
+      `;
+    } else if (patternFallo === "circle-pattern") {
+      svgContent += `
+        <circle cx="${center}" cy="${center}" r="${radius * 0.4}" fill="#ffffff" />
+        <circle cx="${center}" cy="${center}" r="${radius * 0.25}" fill="#ef4444" />
+      `;
+    } else if (patternFallo === "minus-pattern") {
+      svgContent += `
+        <line x1="${center - radius * 0.4}" y1="${center}" x2="${center + radius * 0.4}" y2="${center}" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+        <line x1="${center - radius * 0.4}" y1="${center}" x2="${center + radius * 0.4}" y2="${center}" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" />
+      `;
+    }
   }
 
   return L.divIcon({
@@ -217,19 +272,22 @@ function MapStateAndTracking({
   return null;
 }
 
-// Marcadores de las CTOs en el mapa
 function CtoMarkers({ 
   ctos, 
   onCtoClick, 
   zoomThreshold,
   markerShape,
-  markerSize
+  markerSize,
+  patternCorrecto,
+  patternFallo
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void, 
   zoomThreshold: number,
   markerShape: string,
-  markerSize: number
+  markerSize: number,
+  patternCorrecto?: string,
+  patternFallo?: string
 }) {
   const map = useMap();
   const [bounds, setBounds] = useState<any>(null);
@@ -273,7 +331,7 @@ function CtoMarkers({
           <Marker 
             key={cto.id}
             position={[cto.lat, cto.lng]}
-            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, status)}
+            icon={createCustomIcon(markerShape, markerSize, borderColor, fillColor, status, patternCorrecto, patternFallo)}
             eventHandlers={{
               click: () => onCtoClick(cto)
             }}
@@ -384,6 +442,8 @@ export default function Map({
   users = [],
   markerShape = "circle",
   markerSize = 6,
+  patternCorrecto = "diagonal-stripes",
+  patternFallo = "cross-pattern",
   centerCoords = null
 }: { 
   ctos: any[], 
@@ -393,6 +453,8 @@ export default function Map({
   users?: any[],
   markerShape?: string,
   markerSize?: number,
+  patternCorrecto?: string,
+  patternFallo?: string,
   centerCoords?: [number, number] | null
 }) {
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
@@ -460,6 +522,8 @@ export default function Map({
           zoomThreshold={zoomThreshold} 
           markerShape={markerShape}
           markerSize={markerSize}
+          patternCorrecto={patternCorrecto}
+          patternFallo={patternFallo}
         />
 
         {/* Lógica de estado y rastreador en el mapa */}

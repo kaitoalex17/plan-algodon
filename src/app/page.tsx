@@ -41,7 +41,9 @@ export default async function Home() {
         markerShape: true,
         markerSize: true,
         showProgramadas: true,
-        mapLayer: true
+        mapLayer: true,
+        patternCorrecto: true,
+        patternFallo: true
       }
     });
 
@@ -55,7 +57,9 @@ export default async function Home() {
         markerShape: user.markerShape || "circle",
         markerSize: user.markerSize || 6,
         showProgramadas: user.showProgramadas,
-        mapLayer: user.mapLayer || "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+        mapLayer: user.mapLayer || "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        patternCorrecto: user.patternCorrecto || "diagonal-stripes",
+        patternFallo: user.patternFallo || "cross-pattern"
       } as any;
     }
   } catch (e) {

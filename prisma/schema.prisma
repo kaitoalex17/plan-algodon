@@ -26,6 +26,8 @@ model User {
   markerSize    Int       @default(6)
   showProgramadas Boolean @default(true)
   mapLayer        String  @default("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}")
+  patternCorrecto String  @default("diagonal-stripes")
+  patternFallo    String  @default("cross-pattern")
   assignedCTOs  CTO[]     @relation("AssignedTo")
   createdCTOs   CTO[]     @relation("CreatedBy")
   auditedCTOs   CTO[]     @relation("AuditedBy")

@@ -52,6 +52,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [markerShape, setMarkerShape] = useState(initialMapState?.markerShape || "circle");
   const [markerSize, setMarkerSize] = useState(initialMapState?.markerSize || 6);
   const [showProgramadas, setShowProgramadas] = useState(initialMapState?.showProgramadas !== undefined ? initialMapState.showProgramadas : true);
+  const [patternCorrecto, setPatternCorrecto] = useState(initialMapState?.patternCorrecto || "diagonal-stripes");
+  const [patternFallo, setPatternFallo] = useState(initialMapState?.patternFallo || "cross-pattern");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showMyProgramadasModal, setShowMyProgramadasModal] = useState(false);
@@ -105,6 +107,32 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       });
     } catch (err) {
       console.error("Error guardando tamaño de marcador:", err);
+    }
+  };
+
+  const handlePatternCorrectoChange = async (val: string) => {
+    setPatternCorrecto(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patternCorrecto: val })
+      });
+    } catch (err) {
+      console.error("Error guardando patrón correcto:", err);
+    }
+  };
+
+  const handlePatternFalloChange = async (val: string) => {
+    setPatternFallo(val);
+    try {
+      await fetch("/api/users/map-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patternFallo: val })
+      });
+    } catch (err) {
+      console.error("Error guardando patrón fallo:", err);
     }
   };
 
@@ -826,6 +854,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             users={users}
             markerShape={markerShape}
             markerSize={markerSize}
+            patternCorrecto={patternCorrecto}
+            patternFallo={patternFallo}
             centerCoords={centerCoords}
           />
         </div>
@@ -1177,6 +1207,88 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 onChange={(e) => handleShowProgramadasToggle(e.target.checked)}
                 style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary-color)" }}
               />
+            </div>
+
+            {/* Patrón para CORRECTO */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+                Patrón para CORRECTO / REVISADO:
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+                {[
+                  { value: "diagonal-stripes", label: "Diagonales" },
+                  { value: "horizontal-stripes", label: "Horiz." },
+                  { value: "vertical-stripes", label: "Vert." },
+                  { value: "grid-pattern", label: "Cuadríc." },
+                  { value: "dotted-pattern", label: "5 Puntos" }
+                ].map((pat) => (
+                  <button
+                    key={pat.value}
+                    type="button"
+                    onClick={() => handlePatternCorrectoChange(pat.value)}
+                    style={{
+                      padding: "6px 2px",
+                      borderRadius: "6px",
+                      border: patternCorrecto === pat.value ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
+                      background: "var(--card-bg)",
+                      color: "var(--text-color)",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                      fontSize: "0.65rem",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center"
+                    }}
+                  >
+                    {renderCorrectoPatternPreview(pat.value, session?.user?.color || "#FF7900")}
+                    <span style={{ fontSize: "0.55rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>
+                      {pat.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Patrón para FALLO */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+                Patrón para FALLO:
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+                {[
+                  { value: "cross-pattern", label: "Cruz/Aspa" },
+                  { value: "slash-pattern", label: "Diagonal" },
+                  { value: "alert-pattern", label: "Alerta" },
+                  { value: "circle-pattern", label: "Círculo" },
+                  { value: "minus-pattern", label: "Horiz." }
+                ].map((pat) => (
+                  <button
+                    key={pat.value}
+                    type="button"
+                    onClick={() => handlePatternFalloChange(pat.value)}
+                    style={{
+                      padding: "6px 2px",
+                      borderRadius: "6px",
+                      border: patternFallo === pat.value ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
+                      background: "var(--card-bg)",
+                      color: "var(--text-color)",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                      fontSize: "0.65rem",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center"
+                    }}
+                  >
+                    {renderFalloPatternPreview(pat.value, session?.user?.color || "#FF7900")}
+                    <span style={{ fontSize: "0.55rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>
+                      {pat.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Menú de Instalación de PWA */}
@@ -1596,5 +1708,107 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       />
 
     </div>
+  );
+}
+
+function renderCorrectoPatternPreview(pattern: string, color: string) {
+  const size = 10;
+  const center = 14;
+  const radius = 10;
+  const borderCol = "#10b981";
+  const fillCol = color;
+
+  let svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="1.5" />`;
+
+  if (pattern === "diagonal-stripes") {
+    svgContent += `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#preview-diag)" stroke="none" />`;
+  } else if (pattern === "horizontal-stripes") {
+    svgContent += `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#preview-horiz)" stroke="none" />`;
+  } else if (pattern === "vertical-stripes") {
+    svgContent += `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#preview-vert)" stroke="none" />`;
+  } else if (pattern === "grid-pattern") {
+    svgContent += `<circle cx="${center}" cy="${center}" r="${radius}" fill="url(#preview-grid)" stroke="none" />`;
+  } else if (pattern === "dotted-pattern") {
+    const dotRadius = 1.5;
+    const offset = 4.5;
+    svgContent += `
+      <circle cx="${center}" cy="${center}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+      <circle cx="${center - offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+      <circle cx="${center + offset}" cy="${center - offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+      <circle cx="${center - offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+      <circle cx="${center + offset}" cy="${center + offset}" r="${dotRadius}" fill="${borderCol}" stroke="#ffffff" stroke-width="0.3" />
+    `;
+  }
+
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" style={{ display: "block", margin: "0 auto 4px auto" }}>
+      <defs>
+        <pattern id="preview-diag" width="4" height="4" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" strokeWidth="1.5" />
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#10b981" strokeWidth="0.8" />
+        </pattern>
+        <pattern id="preview-horiz" width="4" height="4" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="4" y2="0" stroke="#ffffff" strokeWidth="1.5" />
+          <line x1="0" y1="0" x2="4" y2="0" stroke="#10b981" strokeWidth="0.8" />
+        </pattern>
+        <pattern id="preview-vert" width="4" height="4" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" strokeWidth="1.5" />
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#10b981" strokeWidth="0.8" />
+        </pattern>
+        <pattern id="preview-grid" width="4" height="4" patternUnits="userSpaceOnUse">
+          <rect width="4" height="4" fill="none" stroke="#ffffff" strokeWidth="1.5" />
+          <rect width="4" height="4" fill="none" stroke="#10b981" strokeWidth="0.8" />
+        </pattern>
+      </defs>
+      <g dangerouslySetInnerHTML={{ __html: svgContent }} />
+    </svg>
+  );
+}
+
+function renderFalloPatternPreview(pattern: string, color: string) {
+  const size = 10;
+  const center = 14;
+  const radius = 10;
+  const borderCol = "#ef4444";
+  const fillCol = color;
+
+  let svgContent = `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillCol}" stroke="${borderCol}" stroke-width="1.5" />`;
+  svgContent += `<circle cx="${center}" cy="${center}" r="${radius - 1.5}" fill="none" stroke="#ffffff" stroke-width="1.2" />`;
+
+  if (pattern === "cross-pattern") {
+    svgContent += `
+      <line x1="${center - 4}" y1="${center - 4}" x2="${center + 4}" y2="${center + 4}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+      <line x1="${center + 4}" y1="${center - 4}" x2="${center - 4}" y2="${center + 4}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+      <line x1="${center - 4}" y1="${center - 4}" x2="${center + 4}" y2="${center + 4}" stroke="#ef4444" stroke-width="1" stroke-linecap="round" />
+      <line x1="${center + 4}" y1="${center - 4}" x2="${center - 4}" y2="${center + 4}" stroke="#ef4444" stroke-width="1" stroke-linecap="round" />
+    `;
+  } else if (pattern === "slash-pattern") {
+    svgContent += `
+      <line x1="${center - 4}" y1="${center + 4}" x2="${center + 4}" y2="${center - 4}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+      <line x1="${center - 4}" y1="${center + 4}" x2="${center + 4}" y2="${center - 4}" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round" />
+    `;
+  } else if (pattern === "alert-pattern") {
+    svgContent += `
+      <line x1="${center}" y1="${center - 5}" x2="${center}" y2="${center + 1}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+      <line x1="${center}" y1="${center - 5}" x2="${center}" y2="${center + 1}" stroke="#ef4444" stroke-width="1" stroke-linecap="round" />
+      <circle cx="${center}" cy="${center + 4}" r="1.2" fill="#ffffff" />
+      <circle cx="${center}" cy="${center + 4}" r="0.6" fill="#ef4444" />
+    `;
+  } else if (pattern === "circle-pattern") {
+    svgContent += `
+      <circle cx="${center}" cy="${center}" r="4" fill="#ffffff" />
+      <circle cx="${center}" cy="${center}" r="2.5" fill="#ef4444" />
+    `;
+  } else if (pattern === "minus-pattern") {
+    svgContent += `
+      <line x1="${center - 4}" y1="${center}" x2="${center + 4}" y2="${center}" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+      <line x1="${center - 4}" y1="${center}" x2="${center + 4}" y2="${center}" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round" />
+    `;
+  }
+
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" style={{ display: "block", margin: "0 auto 4px auto" }}>
+      <g dangerouslySetInnerHTML={{ __html: svgContent }} />
+    </svg>
   );
 }

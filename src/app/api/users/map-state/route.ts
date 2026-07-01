@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { lat, lng, zoom, zoomThreshold, theme, markerShape, markerSize, showProgramadas, mapLayer } = body;
+    const { lat, lng, zoom, zoomThreshold, theme, markerShape, markerSize, showProgramadas, mapLayer, patternCorrecto, patternFallo } = body;
     const userId = (session.user as any).id;
 
     const updateData: any = {};
@@ -25,6 +25,8 @@ export async function PATCH(req: NextRequest) {
     if (markerSize !== undefined) updateData.markerSize = parseInt(markerSize);
     if (showProgramadas !== undefined) updateData.showProgramadas = Boolean(showProgramadas);
     if (mapLayer !== undefined) updateData.mapLayer = String(mapLayer);
+    if (patternCorrecto !== undefined) updateData.patternCorrecto = String(patternCorrecto);
+    if (patternFallo !== undefined) updateData.patternFallo = String(patternFallo);
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "No se proporcionaron datos para actualizar" }, { status: 400 });
