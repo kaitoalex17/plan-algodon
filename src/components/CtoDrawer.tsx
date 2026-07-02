@@ -579,22 +579,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>Auditar CTO</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   
-                  {/* Botón de Estado de Drive */}
+                  {/* Indicator 1: Formulario completo */}
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
+                    title="1. Formulario completo"
+                    style={{
+                      background: hasFormulario ? "#10b981" : "var(--border-color)",
+                      color: hasFormulario ? "white" : "var(--text-color)",
+                      border: "none",
+                      borderRadius: "8px",
+                      width: "38px",
+                      height: "38px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontWeight: 800,
+                      fontSize: "0.95rem",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    1
+                  </button>
+
+                  {/* Indicator 2: Fotos subidas a Drive */}
                   <div style={{ position: "relative" }}>
                     <button
                       type="button"
                       onClick={() => {
                         const status = details?.driveSyncStatus || cto.driveSyncStatus || "NONE";
-                        const folderLink = details?.driveFolderLink || cto.driveFolderLink;
-                        if (status === "SYNCED" && folderLink) {
-                          window.open(folderLink, "_blank");
-                        } else if (status === "ERROR") {
+                        const folderLink = details?.driveFolderLink || cto.driveFolderLink || `https://drive.google.com/drive/search?q=${encodeURIComponent(cto.num)}`;
+                        window.open(folderLink, "_blank");
+                        if (status === "ERROR") {
                           setShowDriveTooltip(!showDriveTooltip);
                         }
                       }}
                       title={
-                        (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "Sincronizado con Drive (Ver carpeta)" : 
-                        (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "Error de sincronización en Drive" : "Sin sincronizar en Drive"
+                        (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "2. Fotos subidas a Drive (Ver carpeta)" : 
+                        (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "2. Error de sincronización en Drive" : "2. Sin sincronizar en Drive"
                       }
                       style={{
                         background: (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "#10b981" : (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "#ef4444" : "var(--border-color)",
@@ -607,13 +630,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
+                        fontWeight: 800,
+                        fontSize: "0.95rem",
                         transition: "all 0.2s"
                       }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                      </svg>
+                      2
                     </button>
                     {showDriveTooltip && (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" && (
                       <div style={{
@@ -643,6 +665,33 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       </div>
                     )}
                   </div>
+
+                  {/* Indicator 3: Registro en Antala */}
+                  {((subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
+                    subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION")) && (
+                    <button
+                      type="button"
+                      onClick={() => window.open("https://teras.antalanae.com/cto", "_blank")}
+                      title="3. Registro en Antala"
+                      style={{
+                        background: hasAntala ? "#10b981" : "var(--border-color)",
+                        color: hasAntala ? "white" : "var(--text-color)",
+                        border: "none",
+                        borderRadius: "8px",
+                        width: "38px",
+                        height: "38px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        fontWeight: 800,
+                        fontSize: "0.95rem",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      3
+                    </button>
+                  )}
 
                   {/* Botón Info (i de Iconoir) */}
                   <button
