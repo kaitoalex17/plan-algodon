@@ -329,10 +329,15 @@ function FormGuideContent() {
       }
     });
     if (requiereAntala === true) {
+      const labelingText = "Se realizan etiquetas de caja, cable y divisor.";
       if (antalaErrors.length > 0) {
         part1Lines.push(`- ${antalaFailed}\n${antalaErrors.map(ae => `  ${ae}`).join("\n")}`);
+        part1Lines.push(`- ${labelingText}`);
       } else {
         part1Lines.push(`- ${antalaYes}`);
+        if (!antalaYes.includes(labelingText)) {
+          part1Lines.push(`- ${labelingText}`);
+        }
       }
     }
 
@@ -1259,8 +1264,42 @@ function FormGuideContent() {
               {saving ? "Guardando..." : "¡Cuestionario Guardado!"}
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0", lineHeight: "1.5" }}>
-              El cuestionario ha sido registrado en la CTO {ctoNum}. Copia las secciones necesarias para completar las pantallas correspondientes:
+              El cuestionario ha sido registrado en la CTO {ctoNum}.
             </p>
+
+            {/* Código CTO */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                Código CTO:
+              </span>
+              <input 
+                type="text"
+                readOnly
+                value={(() => {
+                  const parts = ctoNum.split("-");
+                  if (parts.length === 3) {
+                    return `${parts[0]}-${parts[2]}`;
+                  }
+                  return ctoNum.replace("-29-", "-");
+                })()}
+                style={{
+                  width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
+                  color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", outline: "none", boxSizing: "border-box"
+                }}
+              />
+              <button
+                onClick={() => {
+                  const parts = ctoNum.split("-");
+                  const formatted = parts.length === 3 ? `${parts[0]}-${parts[2]}` : ctoNum.replace("-29-", "-");
+                  navigator.clipboard.writeText(formatted);
+                  alert("¡Código CTO copiado!");
+                }}
+                className="btn btn-primary"
+                style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px", background: "var(--primary-color)" }}
+              >
+                Copiar Código CTO
+              </button>
+            </div>
 
             {/* Bloque 1 */}
             {commentPart1 && (
