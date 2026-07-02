@@ -124,6 +124,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, uploaded: uploadsCount, status: syncStatus, driveFolderLink });
   } catch (error: any) {
     console.error("Error en retry-drive:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Error interno del servidor" }, { status: 500 });
   }
 }
