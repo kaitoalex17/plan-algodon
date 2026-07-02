@@ -282,6 +282,34 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     await saveCto("CORRECTO", currentUserId || assignedToId, updatePayload);
   };
 
+  const [showDriveTooltip, setShowDriveTooltip] = useState(false);
+  const [retryingDrive, setRetryingDrive] = useState(false);
+
+  const handleRetryDrive = async () => {
+    if (!cto || !cto.id) return;
+    setRetryingDrive(true);
+    try {
+      const res = await fetch("/api/upload/retry-drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ctoId: cto.id })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Sincronización completada. Se subieron ${data.uploaded} fotos a Drive.`);
+        onClose(); // o refrescar
+      } else {
+        alert(data.error || "Error al sincronizar con Drive");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error en la conexión al intentar sincronizar.");
+    } finally {
+      setRetryingDrive(false);
+      setShowDriveTooltip(false);
+    }
+  };
+
   // Upload pictures sequentially (file by file) with overall progress tracking
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -551,6 +579,71 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>Auditar CTO</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
+                  
+                  {/* Botón de Estado de Drive */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const status = cto.driveSyncStatus || "NONE";
+                        if (status === "SYNCED" && cto.driveFolderLink) {
+                          window.open(cto.driveFolderLink, "_blank");
+                        } else if (status === "ERROR") {
+                          setShowDriveTooltip(!showDriveTooltip);
+                        }
+                      }}
+                      title={
+                        cto.driveSyncStatus === "SYNCED" ? "Sincronizado con Drive (Ver carpeta)" : 
+                        cto.driveSyncStatus === "ERROR" ? "Error de sincronización en Drive" : "Sin sincronizar en Drive"
+                      }
+                      style={{
+                        background: cto.driveSyncStatus === "SYNCED" ? "#10b981" : cto.driveSyncStatus === "ERROR" ? "#ef4444" : "var(--border-color)",
+                        color: cto.driveSyncStatus === "SYNCED" || cto.driveSyncStatus === "ERROR" ? "white" : "var(--text-color)",
+                        border: "none",
+                        borderRadius: "8px",
+                        width: "38px",
+                        height: "38px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    </button>
+                    {showDriveTooltip && cto.driveSyncStatus === "ERROR" && (
+                      <div style={{
+                        position: "absolute",
+                        top: "45px",
+                        right: "0",
+                        width: "250px",
+                        background: "var(--card-bg)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                        zIndex: 100
+                      }}>
+                        <p style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "var(--text-color)", fontWeight: 600 }}>
+                          La carpeta no se encontró o hubo un error. Créala en Drive con el nombre <strong>{cto.num}</strong> y presiona reintentar.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleRetryDrive}
+                          disabled={retryingDrive}
+                          className="btn btn-primary"
+                          style={{ width: "100%", justifyContent: "center", minHeight: "34px", fontSize: "0.85rem", padding: "4px" }}
+                        >
+                          {retryingDrive ? "Subiendo..." : "Reintentar Sincronización"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Botón Info (i de Iconoir) */}
                   <button
                     type="button"

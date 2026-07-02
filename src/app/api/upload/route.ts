@@ -6,6 +6,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import fs from "fs";
 import sharp from "sharp";
+import { google } from "googleapis";
+import stream from "stream";
 
 export async function POST(req: Request) {
   try {
@@ -23,17 +25,68 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Archivos o CTO ID no proporcionados" }, { status: 400 });
     }
 
+    const cto = await prisma.cTO.findUnique({ where: { id: ctoId } });
+    if (!cto) {
+      return NextResponse.json({ error: "CTO no encontrado" }, { status: 404 });
+    }
+
     const uploadDir = join(process.cwd(), "public", "uploads");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    // Obtener parámetros de compresión de la base de datos (por defecto WhatsApp HD: 1600px max, 80% calidad)
+    // Obtener parámetros de compresión de la base de datos
     const qualitySetting = await prisma.setting.findUnique({ where: { key: "imageQuality" } });
     const maxWidthSetting = await prisma.setting.findUnique({ where: { key: "imageMaxWidth" } });
     
     const quality = qualitySetting ? parseInt(qualitySetting.value) : 80;
     const maxWidth = maxWidthSetting ? parseInt(maxWidthSetting.value) : 1600;
+
+    // Configuración de Google Drive
+    const driveEnabledSetting = await prisma.setting.findUnique({ where: { key: "driveEnabled" } });
+    const driveJsonSetting = await prisma.setting.findUnique({ where: { key: "driveServiceAccount" } });
+    const driveRootSetting = await prisma.setting.findUnique({ where: { key: "driveRootFolderId" } });
+
+    let drive: any = null;
+    let folderId: string | null = null;
+    let driveError = false;
+    let driveFolderLink: string | null = null;
+
+    if (driveEnabledSetting?.value === "true" && driveJsonSetting?.value) {
+      try {
+        const credentials = JSON.parse(driveJsonSetting.value);
+        const auth = new google.auth.GoogleAuth({
+          credentials,
+          scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"],
+        });
+        drive = google.drive({ version: "v3", auth });
+
+        // Search for folder by CTO code
+        let searchQ = `name='${cto.num}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+        if (driveRootSetting?.value) {
+          // It's sometimes safer to just search globally if the folder is deeply nested,
+          // 'in parents' only checks the IMMEDIATE parent. We will just use the global search by name since CTO names are unique.
+          // searchQ = `${searchQ} and '${driveRootSetting.value}' in parents`;
+        }
+        
+        const res = await drive.files.list({
+          q: searchQ,
+          fields: "files(id, webViewLink)",
+          spaces: "drive",
+        });
+
+        if (res.data.files && res.data.files.length > 0) {
+          folderId = res.data.files[0].id;
+          driveFolderLink = res.data.files[0].webViewLink;
+        } else {
+          driveError = true;
+          console.warn(`[Drive] Carpeta no encontrada para el CTO ${cto.num}`);
+        }
+      } catch (err) {
+        console.error("Error authenticating or searching drive:", err);
+        driveError = true;
+      }
+    }
 
     const uploadedImages = [];
 
@@ -43,6 +96,7 @@ export async function POST(req: Request) {
 
       const ext = file.name.split(".").pop()?.toLowerCase();
       let processedBuffer = buffer;
+      let finalMimeType = file.type || "application/octet-stream";
 
       // Comprimir imágenes si son formatos soportados
       if (ext && ["jpg", "jpeg", "png", "webp"].includes(ext)) {
@@ -58,10 +112,13 @@ export async function POST(req: Request) {
           
           if (ext === "png") {
             pipeline = pipeline.png({ quality, compressionLevel: 8 });
+            finalMimeType = "image/png";
           } else if (ext === "webp") {
             pipeline = pipeline.webp({ quality });
+            finalMimeType = "image/webp";
           } else {
             pipeline = pipeline.jpeg({ quality, progressive: true });
+            finalMimeType = "image/jpeg";
           }
           
           processedBuffer = await pipeline.toBuffer();
@@ -74,11 +131,34 @@ export async function POST(req: Request) {
       const filename = `${uniqueSuffix}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
       const filepath = join(uploadDir, filename);
 
+      // 1. Guardar localmente
       await writeFile(filepath, processedBuffer);
 
-      // Guardamos la URL apuntando a nuestra nueva API dinámica de uploads
+      // 2. Guardar en Google Drive si está habilitado y la carpeta existe
+      if (drive && folderId) {
+        try {
+          const bufferStream = new stream.PassThrough();
+          bufferStream.end(processedBuffer);
+          
+          await drive.files.create({
+            requestBody: {
+              name: filename,
+              parents: [folderId],
+            },
+            media: {
+              mimeType: finalMimeType,
+              body: bufferStream,
+            },
+            fields: "id",
+          });
+        } catch (err) {
+          console.error("Error uploading file to drive:", err);
+          driveError = true;
+        }
+      }
+
+      // 3. Guardar en BD
       const imageUrl = `/api/uploads/${filename}`;
-      
       let imageRecord = null;
       try {
         imageRecord = await prisma.image.create({
@@ -88,13 +168,34 @@ export async function POST(req: Request) {
           }
         });
       } catch (dbError) {
-        console.warn("No se pudo guardar en BD (¿Base de datos apagada?), pero la imagen se subió.", dbError);
+        console.warn("No se pudo guardar en BD, pero la imagen se subió localmente.", dbError);
       }
       
       uploadedImages.push(imageRecord || { url: imageUrl });
     }
 
-    return NextResponse.json({ success: true, images: uploadedImages });
+    // Actualizar estado del CTO respecto a Drive
+    if (driveEnabledSetting?.value === "true") {
+      let syncStatus = "NONE";
+      if (folderId && !driveError) syncStatus = "SYNCED";
+      else if (driveError) syncStatus = "ERROR";
+      
+      // If it was already SYNCED and this upload had an error, it becomes ERROR
+      // If it was ERROR and this upload succeeded, it becomes SYNCED
+      await prisma.cTO.update({
+        where: { id: ctoId },
+        data: {
+          driveSyncStatus: syncStatus,
+          ...(driveFolderLink ? { driveFolderLink } : {})
+        }
+      });
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      images: uploadedImages,
+      driveMissingFolder: driveError
+    });
   } catch (error: any) {
     console.error("Error subiendo imagen:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

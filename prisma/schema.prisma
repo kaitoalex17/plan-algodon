@@ -110,6 +110,8 @@ model CTO {
   hasAntala      Boolean   @default(false)
   formDataJson   String?
   urlFicha       String?
+  driveSyncStatus String   @default("NONE") // NONE, SYNCED, ERROR
+  driveFolderLink String?
 
   comments       Comment[]
   images         Image[]
