@@ -296,7 +296,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       const data = await res.json();
       if (res.ok) {
         alert(`Sincronización completada. Se subieron ${data.uploaded} fotos a Drive.`);
-        onClose(); // o refrescar
+        fetchCtoDetails();
       } else {
         alert(data.error || "Error al sincronizar con Drive");
       }
@@ -584,20 +584,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        const status = cto.driveSyncStatus || "NONE";
-                        if (status === "SYNCED" && cto.driveFolderLink) {
-                          window.open(cto.driveFolderLink, "_blank");
+                        const status = details?.driveSyncStatus || cto.driveSyncStatus || "NONE";
+                        const folderLink = details?.driveFolderLink || cto.driveFolderLink;
+                        if (status === "SYNCED" && folderLink) {
+                          window.open(folderLink, "_blank");
                         } else if (status === "ERROR") {
                           setShowDriveTooltip(!showDriveTooltip);
                         }
                       }}
                       title={
-                        cto.driveSyncStatus === "SYNCED" ? "Sincronizado con Drive (Ver carpeta)" : 
-                        cto.driveSyncStatus === "ERROR" ? "Error de sincronización en Drive" : "Sin sincronizar en Drive"
+                        (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "Sincronizado con Drive (Ver carpeta)" : 
+                        (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "Error de sincronización en Drive" : "Sin sincronizar en Drive"
                       }
                       style={{
-                        background: cto.driveSyncStatus === "SYNCED" ? "#10b981" : cto.driveSyncStatus === "ERROR" ? "#ef4444" : "var(--border-color)",
-                        color: cto.driveSyncStatus === "SYNCED" || cto.driveSyncStatus === "ERROR" ? "white" : "var(--text-color)",
+                        background: (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "#10b981" : (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "#ef4444" : "var(--border-color)",
+                        color: (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" || (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "white" : "var(--text-color)",
                         border: "none",
                         borderRadius: "8px",
                         width: "38px",
@@ -614,7 +615,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                       </svg>
                     </button>
-                    {showDriveTooltip && cto.driveSyncStatus === "ERROR" && (
+                    {showDriveTooltip && (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" && (
                       <div style={{
                         position: "absolute",
                         top: "45px",
@@ -628,7 +629,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         zIndex: 100
                       }}>
                         <p style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "var(--text-color)", fontWeight: 600 }}>
-                          La carpeta no se encontró o hubo un error. Créala en Drive con el nombre <strong>{cto.num}</strong> y presiona reintentar.
+                          La carpeta no se encontró o hubo un error. Créala en Drive con el nombre <strong>{details?.num || cto.num}</strong> y presiona reintentar.
                         </p>
                         <button
                           type="button"
