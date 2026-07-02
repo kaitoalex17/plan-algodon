@@ -35,27 +35,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Drive no está configurado o habilitado" }, { status: 400 });
     }
 
-    const credentials = JSON.parse(driveJsonSetting.value);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"],
-    });
-    const drive = google.drive({ version: "v3", auth });
+    let drive: any = null;
+    let folderId: string | null = null;
+    let driveFolderLink: string | null = null;
 
-    // Buscar la carpeta
-    const searchQ = `name='${cto.num}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-    const res = await drive.files.list({
-      q: searchQ,
-      fields: "files(id, webViewLink)",
-      spaces: "drive",
-    });
+    try {
+      const credentials = JSON.parse(driveJsonSetting.value);
+      const auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"],
+      });
+      drive = google.drive({ version: "v3", auth });
 
-    if (!res.data.files || res.data.files.length === 0) {
-      return NextResponse.json({ error: "Carpeta no encontrada en Drive" }, { status: 404 });
+      // Buscar la carpeta
+      const searchQ = `name='${cto.num}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      const res = await drive.files.list({
+        q: searchQ,
+        fields: "files(id, webViewLink)",
+        spaces: "drive",
+      });
+
+      if (!res.data.files || res.data.files.length === 0) {
+        return NextResponse.json({ error: "Carpeta no encontrada en Google Drive. Por favor, asegúrate de crear la carpeta con el nombre exacto de la CTO." }, { status: 404 });
+      }
+
+      folderId = res.data.files[0].id || null;
+      driveFolderLink = res.data.files[0].webViewLink || null;
+    } catch (authError: any) {
+      console.error("Error al autenticar o buscar en Google Drive:", authError);
+      return NextResponse.json({ 
+        error: `Error de Google Drive (${authError.code || 'AUTH_ERROR'}): ${authError.message}. Verifica que el JSON de la cuenta de servicio sea válido y que la API de Drive esté activa.` 
+      }, { status: 400 });
     }
-
-    const folderId = res.data.files[0].id;
-    const driveFolderLink = res.data.files[0].webViewLink;
 
     // Obtener los nombres de los archivos que ya están en esa carpeta de Drive para no duplicar
     const driveFilesRes = await drive.files.list({
