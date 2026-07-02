@@ -86,6 +86,7 @@ function FormGuideContent() {
   const [generatedComment, setGeneratedComment] = useState("");
   const [commentPart1, setCommentPart1] = useState("");
   const [commentPart2, setCommentPart2] = useState("");
+  const [commentPart2Comment, setCommentPart2Comment] = useState("");
   const [commentPart3, setCommentPart3] = useState("");
   const [showResultModal, setShowResultModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -369,28 +370,50 @@ function FormGuideContent() {
       influenciaParts.forEach(ip => part3Lines.push(`  * ${ip}`));
     }
 
+    const signalComments: string[] = [];
+    splitters.forEach((s, idx) => {
+      if (!s.signal) return;
+      const clean = s.signal.trim().replace(",", ".");
+      const numVal = Math.abs(parseFloat(clean));
+      if (!isNaN(numVal)) {
+        if (numVal === noSignalVal) {
+          signalComments.push(`No hay señal en el splitter/divisor ${idx + 1}. Necesaria intervención.`);
+        } else if (numVal > threshold) {
+          signalComments.push(`La señal del divisor ${idx + 1} es elevada, es necesario intervención para mejorarla.`);
+        }
+      }
+    });
+
     return {
       part1: part1Lines.join("\n"),
       part2: part2Text,
+      part2Comment: signalComments.join("\n"),
       part3: part3Lines.join("\n")
     };
   };
 
   const generateReportText = () => {
-    const { part1, part2, part3 } = generateReportParts();
+    const { part1, part2, part2Comment, part3 } = generateReportParts();
     const parts = [];
     if (part1) parts.push(part1);
-    if (part2) parts.push(`\n\n${part2}\n\n`);
+    
+    let part2Full = part2;
+    if (part2Comment) {
+      part2Full = `${part2}\n\n${part2Comment}`;
+    }
+    if (part2Full) parts.push(`\n\n${part2Full}\n\n`);
+    
     if (part3) parts.push(part3);
     return parts.join("\n");
   };
 
   const handleSaveAndShow = async () => {
     const reportText = generateReportText();
-    const { part1, part2, part3 } = generateReportParts();
+    const { part1, part2, part2Comment, part3 } = generateReportParts();
     setGeneratedComment(reportText);
     setCommentPart1(part1);
     setCommentPart2(part2);
+    setCommentPart2Comment(part2Comment || "");
     setCommentPart3(part3);
     setShowResultModal(true);
     setSaving(true);
@@ -1272,21 +1295,21 @@ function FormGuideContent() {
               <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
                 Código CTO:
               </span>
-              <input 
-                type="text"
-                readOnly
-                value={(() => {
+              <div 
+                style={{
+                  width: "100%", padding: "10px 12px", background: "var(--bg-color, #f3f4f6)", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "10px",
+                  color: "var(--text-color, #111827)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                  display: "flex", alignItems: "center", minHeight: "38px"
+                }}
+              >
+                {(() => {
                   const parts = ctoNum.split("-");
                   if (parts.length === 3) {
                     return `${parts[0]}-${parts[2]}`;
                   }
                   return ctoNum.replace("-29-", "-");
                 })()}
-                style={{
-                  width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
-                  color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", outline: "none", boxSizing: "border-box"
-                }}
-              />
+              </div>
               <button
                 onClick={() => {
                   const parts = ctoNum.split("-");
@@ -1307,15 +1330,15 @@ function FormGuideContent() {
                 <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
                   1. Datos de CTO y Antala:
                 </span>
-                <textarea 
-                  readOnly
-                  value={commentPart1}
-                  rows={4}
+                <div 
                   style={{
-                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
-                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                    width: "100%", padding: "10px 12px", background: "var(--bg-color, #f3f4f6)", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "10px",
+                    color: "var(--text-color, #111827)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
                   }}
-                />
+                >
+                  {commentPart1}
+                </div>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(commentPart1);
@@ -1335,15 +1358,43 @@ function FormGuideContent() {
                 <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
                   2. Señal:
                 </span>
-                <textarea 
-                  readOnly
-                  value={commentPart2}
-                  rows={2}
+                <div 
                   style={{
-                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
-                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                    width: "100%", padding: "10px 12px", background: "var(--bg-color, #f3f4f6)", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "10px",
+                    color: "var(--text-color, #111827)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
                   }}
-                />
+                >
+                  {commentPart2}
+                </div>
+              </div>
+            )}
+
+            {/* Bloque 2 - Comentario de Señal */}
+            {commentPart2Comment && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                  2. Comentario de Señal:
+                </span>
+                <div 
+                  style={{
+                    width: "100%", padding: "10px 12px", background: "var(--bg-color, #f3f4f6)", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "10px",
+                    color: "var(--text-color, #111827)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
+                  }}
+                >
+                  {commentPart2Comment}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(commentPart2Comment);
+                    alert("¡Comentario de señal copiado!");
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px", background: "var(--primary-color)" }}
+                >
+                  Copiar Sección 2
+                </button>
               </div>
             )}
 
@@ -1353,15 +1404,15 @@ function FormGuideContent() {
                 <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
                   3. Área de influencia:
                 </span>
-                <textarea 
-                  readOnly
-                  value={commentPart3}
-                  rows={3}
+                <div 
                   style={{
-                    width: "100%", padding: "10px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid var(--border-color)", borderRadius: "10px",
-                    color: "var(--text-color, #e2e8f0)", fontFamily: "monospace", fontSize: "0.8rem", resize: "none", outline: "none"
+                    width: "100%", padding: "10px 12px", background: "var(--bg-color, #f3f4f6)", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "10px",
+                    color: "var(--text-color, #111827)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
                   }}
-                />
+                >
+                  {commentPart3}
+                </div>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(commentPart3);
