@@ -60,6 +60,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [zoomScale, setZoomScale] = useState(1);
   const [showFormSheetModal, setShowFormSheetModal] = useState(false);
   const [deletingForm, setDeletingForm] = useState(false);
+  const [showDriveTooltip, setShowDriveTooltip] = useState(false);
+  const [retryingDrive, setRetryingDrive] = useState(false);
 
   const handleDeleteForm = async () => {
     if (!confirm("¿Estás seguro de que deseas eliminar permanentemente el cuestionario de esta CTO? Esto también borrará los datos del formulario guardados.")) return;
@@ -281,9 +283,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     setShowChecklistModal(false);
     await saveCto("CORRECTO", currentUserId || assignedToId, updatePayload);
   };
-
-  const [showDriveTooltip, setShowDriveTooltip] = useState(false);
-  const [retryingDrive, setRetryingDrive] = useState(false);
 
   const handleRetryDrive = async () => {
     if (!cto || !cto.id) return;
