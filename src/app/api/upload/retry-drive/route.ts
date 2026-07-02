@@ -77,6 +77,7 @@ export async function POST(req: Request) {
 
     let uploadsCount = 0;
     let driveError = false;
+    let lastUploadError = "";
 
     // Subir cada imagen local que falte
     for (const image of cto.images) {
@@ -113,9 +114,10 @@ export async function POST(req: Request) {
           fields: "id",
         });
         uploadsCount++;
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error subiendo archivo en reintento:", err);
         driveError = true;
+        lastUploadError = err.message || String(err);
       }
     }
 
@@ -129,7 +131,10 @@ export async function POST(req: Request) {
     });
 
     if (driveError) {
-      return NextResponse.json({ error: "Hubo errores al subir algunos archivos", status: syncStatus }, { status: 500 });
+      return NextResponse.json({ 
+        error: `Hubo errores al subir los archivos a Google Drive. Último error: ${lastUploadError}`, 
+        status: syncStatus 
+      }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, uploaded: uploadsCount, status: syncStatus, driveFolderLink });
