@@ -578,15 +578,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>Auditar CTO</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  
-                  {/* Indicator 1: Formulario completo */}
+                  {/* Icono Google Drive (deshabilitado por ahora) */}
                   <button
                     type="button"
-                    onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
-                    title="1. Formulario completo"
+                    onClick={() => {/* TODO: Drive integration */}}
+                    title="Google Drive (próximamente)"
                     style={{
-                      background: hasFormulario ? "#10b981" : "var(--border-color)",
-                      color: hasFormulario ? "white" : "var(--text-color)",
+                      background: "var(--border-color)",
+                      color: "var(--text-color)",
                       border: "none",
                       borderRadius: "8px",
                       width: "38px",
@@ -594,104 +593,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      cursor: "pointer",
-                      fontWeight: 800,
-                      fontSize: "0.95rem",
+                      cursor: "default",
+                      opacity: 0.5,
                       transition: "all 0.2s"
                     }}
                   >
-                    1
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 19.5h20L12 2z" />
+                      <path d="M2 19.5h20" />
+                      <path d="M15.5 8.5L22 19.5" />
+                      <path d="M8.5 8.5L2 19.5" />
+                    </svg>
                   </button>
 
-                  {/* Indicator 2: Fotos subidas a Drive */}
-                  <div style={{ position: "relative" }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const status = details?.driveSyncStatus || cto.driveSyncStatus || "NONE";
-                        const folderLink = details?.driveFolderLink || cto.driveFolderLink || `https://drive.google.com/drive/search?q=${encodeURIComponent(cto.num)}`;
-                        window.open(folderLink, "_blank");
-                        if (status === "ERROR") {
-                          setShowDriveTooltip(!showDriveTooltip);
-                        }
-                      }}
-                      title={
-                        (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "2. Fotos subidas a Drive (Ver carpeta)" : 
-                        (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "2. Error de sincronización en Drive" : "2. Sin sincronizar en Drive"
-                      }
-                      style={{
-                        background: (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" ? "#10b981" : (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "#ef4444" : "var(--border-color)",
-                        color: (details?.driveSyncStatus || cto.driveSyncStatus) === "SYNCED" || (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" ? "white" : "var(--text-color)",
-                        border: "none",
-                        borderRadius: "8px",
-                        width: "38px",
-                        height: "38px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        fontWeight: 800,
-                        fontSize: "0.95rem",
-                        transition: "all 0.2s"
-                      }}
-                    >
-                      2
-                    </button>
-                    {showDriveTooltip && (details?.driveSyncStatus || cto.driveSyncStatus) === "ERROR" && (
-                      <div style={{
-                        position: "absolute",
-                        top: "45px",
-                        right: "0",
-                        width: "250px",
-                        background: "var(--card-bg)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "8px",
-                        padding: "12px",
-                        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-                        zIndex: 100
-                      }}>
-                        <p style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "var(--text-color)", fontWeight: 600 }}>
-                          La carpeta no se encontró o hubo un error. Créala en Drive con el nombre <strong>{details?.num || cto.num}</strong> y presiona reintentar.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={handleRetryDrive}
-                          disabled={retryingDrive}
-                          className="btn btn-primary"
-                          style={{ width: "100%", justifyContent: "center", minHeight: "34px", fontSize: "0.85rem", padding: "4px" }}
-                        >
-                          {retryingDrive ? "Subiendo..." : "Reintentar Sincronización"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Indicator 3: Registro en Antala */}
-                  {((subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
-                    subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION")) && (
-                    <button
-                      type="button"
-                      onClick={() => window.open("https://teras.antalanae.com/cto", "_blank")}
-                      title="3. Registro en Antala"
-                      style={{
-                        background: hasAntala ? "#10b981" : "var(--border-color)",
-                        color: hasAntala ? "white" : "var(--text-color)",
-                        border: "none",
-                        borderRadius: "8px",
-                        width: "38px",
-                        height: "38px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        fontWeight: 800,
-                        fontSize: "0.95rem",
-                        transition: "all 0.2s"
-                      }}
-                    >
-                      3
-                    </button>
-                  )}
 
                   {/* Botón Info (i de Iconoir) */}
                   <button
