@@ -12,11 +12,68 @@ type CtoDrawerProps = {
   onUpdate: (updatedCto: any) => void;
 };
 
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("IndexedDB is only available in the browser"));
+      return;
+    }
+    const request = indexedDB.open("AlgodonOfflineDB", 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("pending_uploads")) {
+        db.createObjectStore("pending_uploads", { keyPath: "fileId" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const savePendingUpload = async (record: { fileId: string; ctoId: string; fileName: string; blob: Blob; status: string; timestamp: number }) => {
+  const db = await openDB();
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction("pending_uploads", "readwrite");
+    const store = transaction.objectStore("pending_uploads");
+    const request = store.put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const deletePendingUpload = async (fileId: string) => {
+  const db = await openDB();
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction("pending_uploads", "readwrite");
+    const store = transaction.objectStore("pending_uploads");
+    const request = store.delete(fileId);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const getPendingUploadsForCto = async (ctoId: string): Promise<any[]> => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("pending_uploads", "readonly");
+    const store = transaction.objectStore("pending_uploads");
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const all = request.result || [];
+      const filtered = all.filter((item: any) => item.ctoId === ctoId);
+      resolve(filtered);
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
 export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const [details, setDetails] = useState<any>(null);
+  const [pendingUploads, setPendingUploads] = useState<any[]>([]);
+  const [uploadConfig, setUploadConfig] = useState({ imageQuality: 80, imageMaxWidth: 1600 });
   const [subStatuses, setSubStatuses] = useState<SubStatus[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   
@@ -162,17 +219,226 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   }, [isAdmin]);
 
+  const loadPendingUploads = useCallback(async () => {
+    try {
+      const pending = await getPendingUploadsForCto(cto.id);
+      setPendingUploads(pending);
+    } catch (err) {
+      console.error("Error cargando pendientes locales:", err);
+    }
+  }, [cto.id]);
+
+  const fetchUploadConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/upload/config");
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setUploadConfig({
+            imageQuality: data.imageQuality,
+            imageMaxWidth: data.imageMaxWidth
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching upload config:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUploadConfig();
+  }, [fetchUploadConfig]);
+
+  const compressImageClientSide = (file: File, maxWidth: number, quality: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxWidth) {
+              width = Math.round((width * maxWidth) / height);
+              height = maxWidth;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("No se pudo obtener el contexto del Canvas"));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error("Error al convertir Canvas a Blob"));
+              }
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const uploadInChunks = async (fileId: string, fileName: string, blob: Blob) => {
+    const CHUNK_SIZE = 100 * 1024; // 100 KB
+    const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
+    
+    setUploading(true);
+    setUploadProgress({ percent: 0, loaded: 0, total: blob.size });
+
+    let success = false;
+    try {
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, blob.size);
+        const chunkBlob = blob.slice(start, end);
+
+        const formData = new FormData();
+        formData.append("chunk", chunkBlob);
+        formData.append("ctoId", cto.id);
+        formData.append("fileId", fileId);
+        formData.append("fileName", fileName);
+        formData.append("chunkIndex", String(chunkIndex));
+        formData.append("totalChunks", String(totalChunks));
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/upload/chunk");
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const currentChunkLoaded = event.loaded;
+              const overallLoaded = start + currentChunkLoaded;
+              const percent = Math.min(99, Math.round((overallLoaded / blob.size) * 100));
+              setUploadProgress({ percent, loaded: overallLoaded, total: blob.size });
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Server error: ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Error de red"));
+          xhr.send(formData);
+        });
+      }
+
+      setUploadProgress({ percent: 100, loaded: blob.size, total: blob.size });
+      success = true;
+    } catch (error) {
+      console.error("Fallo al subir fragmentos para", fileId, error);
+      await savePendingUpload({
+        fileId,
+        ctoId: cto.id,
+        fileName,
+        blob,
+        status: "failed",
+        timestamp: Date.now()
+      });
+      await loadPendingUploads();
+      alert("La subida falló debido a problemas de conexión. La imagen se ha guardado localmente en tu dispositivo. Podrás reintentar la subida en la sección de evidencias.");
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+    }
+
+    if (success) {
+      try {
+        await deletePendingUpload(fileId);
+        await loadPendingUploads();
+        fetchCtoDetails();
+        alert("Imagen capturada y subida correctamente.");
+      } catch (err) {
+        console.error("Error al limpiar IndexedDB:", err);
+      }
+    }
+  };
+
+  const handleCameraUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fileId = `camera-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const fileName = file.name || `foto_camara_${Date.now()}.jpg`;
+
+    setUploading(true);
+    setUploadProgress({ percent: 0, loaded: 0, total: file.size });
+
+    try {
+      const canvasQuality = uploadConfig.imageQuality / 100; 
+      const compressedBlob = await compressImageClientSide(file, uploadConfig.imageMaxWidth, canvasQuality);
+
+      await savePendingUpload({
+        fileId,
+        ctoId: cto.id,
+        fileName,
+        blob: compressedBlob,
+        status: "pending",
+        timestamp: Date.now()
+      });
+
+      await loadPendingUploads();
+      await uploadInChunks(fileId, fileName, compressedBlob);
+    } catch (err: any) {
+      console.error("Error en captura/subida de cámara:", err);
+      alert(`Error al procesar la imagen de la cámara: ${err.message || String(err)}`);
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+    }
+  };
+
+  const handleRetryUpload = async (pendingItem: any) => {
+    await uploadInChunks(pendingItem.fileId, pendingItem.fileName, pendingItem.blob);
+  };
+
+  const handleDiscardPending = async (fileId: string) => {
+    if (confirm("¿Estás seguro de que deseas descartar esta foto pendiente de subida?")) {
+      await deletePendingUpload(fileId);
+      await loadPendingUploads();
+    }
+  };
+
   useEffect(() => {
     if (cto) {
       fetchCtoDetails();
       fetchOptions();
+      loadPendingUploads();
       setShowFiberDetails(false); // Reset on cto change
       setShowGallery(false);
       setActiveImgIndex(null);
     } else {
       setDetails(null);
     }
-  }, [cto, fetchCtoDetails, fetchOptions]);
+  }, [cto, fetchCtoDetails, fetchOptions, loadPendingUploads]);
 
   if (!cto) return null;
 
@@ -827,7 +1093,96 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   )}
                 </div>
 
+                {pendingUploads.length > 0 && (
+                  <div style={{ marginBottom: "12px", border: "1px dashed #f59e0b", borderRadius: "8px", padding: "8px", background: "rgba(245, 158, 11, 0.05)" }}>
+                    <p style={{ margin: "0 0 6px 0", fontSize: "0.78rem", fontWeight: 700, color: "#d97706", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      Fotos pendientes de subir ({pendingUploads.length})
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {pendingUploads.map((item) => {
+                        const previewUrl = URL.createObjectURL(item.blob);
+                        return (
+                          <div key={item.fileId} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--card-bg)", padding: "4px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={previewUrl} alt="Preview" style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "4px" }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ margin: 0, fontSize: "0.72rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-color)" }}>
+                                {item.fileName}
+                              </p>
+                              <span style={{ fontSize: "0.65rem", color: item.status === "failed" ? "#ef4444" : "#6b7280" }}>
+                                {item.status === "failed" ? "Fallo de conexión" : "Esperando subida..."}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRetryUpload(item)}
+                                className="btn"
+                                disabled={uploading}
+                                style={{
+                                  padding: "3px 8px", fontSize: "0.7rem", minHeight: "24px",
+                                  background: "var(--primary-color)", color: "#fff", border: "none"
+                                }}
+                              >
+                                Reintentar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDiscardPending(item.fileId)}
+                                className="btn"
+                                disabled={uploading}
+                                style={{
+                                  padding: "3px 8px", fontSize: "0.7rem", minHeight: "24px",
+                                  background: "#ef4444", color: "#fff", border: "none"
+                                }}
+                              >
+                                Descartar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: "8px" }}>
+                  <label 
+                    className="btn" 
+                    style={{ 
+                      width: "48px", 
+                      height: "40px", 
+                      flexShrink: 0,
+                      background: "var(--bg-color)", 
+                      color: "var(--text-color)", 
+                      border: "1px solid var(--border-color)", 
+                      cursor: "pointer", 
+                      display: "inline-flex", 
+                      justifyContent: "center", 
+                      alignItems: "center",
+                      borderRadius: "8px"
+                    }}
+                    title="Tomar Foto con Cámara"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      disabled={uploading}
+                      style={{ display: "none" }} 
+                      onChange={handleCameraUpload} 
+                    />
+                  </label>
+
                   <label className="btn" style={{ flex: 2, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", justifyContent: "center", alignItems: "center" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

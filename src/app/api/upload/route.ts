@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       const buffer = Buffer.from(bytes);
 
       const ext = file.name.split(".").pop()?.toLowerCase();
-      let processedBuffer = buffer;
+      let processedBuffer: any = buffer;
       let finalMimeType = file.type || "application/octet-stream";
 
       // Comprimir imágenes si son formatos soportados
