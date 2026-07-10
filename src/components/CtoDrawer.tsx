@@ -220,13 +220,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   }, [isAdmin]);
 
   const loadPendingUploads = useCallback(async () => {
+    if (!cto?.id) return;
     try {
       const pending = await getPendingUploadsForCto(cto.id);
       setPendingUploads(pending);
     } catch (err) {
       console.error("Error cargando pendientes locales:", err);
     }
-  }, [cto.id]);
+  }, [cto?.id]);
 
   const fetchUploadConfig = useCallback(async () => {
     try {
