@@ -70,6 +70,8 @@ const getPendingUploadsForCto = async (ctoId: string): Promise<any[]> => {
 export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const isGestor = (session?.user as any)?.role === "GESTOR";
+  const canEditAudit = isAdmin || isGestor;
 
   const [details, setDetails] = useState<any>(null);
   const [pendingUploads, setPendingUploads] = useState<any[]>([]);
@@ -81,6 +83,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [status, setStatus] = useState("PENDIENTE");
   const [subStatusId, setSubStatusId] = useState("");
   const [assignedToId, setAssignedToId] = useState("");
+  const [auditedById, setAuditedById] = useState("");
+  const [auditDateTime, setAuditDateTime] = useState("");
   const [notas, setNotas] = useState("");
   const [commentText, setCommentText] = useState("");
   
@@ -186,6 +190,30 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setZona(data.zona || "");
         setCluster(data.cluster || "");
         
+        setAuditedById(data.auditedById || "");
+
+        // Extraer fecha y hora de auditoría del historial
+        let initialAuditDateTime = "";
+        if (data.history && data.history.length > 0) {
+          const auditLog = data.history.find((h: any) => 
+            (h.action || "").toLowerCase().includes("a correcto") || 
+            (h.action || "").toLowerCase().includes("a fallo")
+          ) || data.history[0];
+
+          if (auditLog && auditLog.timestamp) {
+            const dt = new Date(auditLog.timestamp);
+            if (!isNaN(dt.getTime())) {
+              const y = dt.getFullYear();
+              const m = String(dt.getMonth() + 1).padStart(2, "0");
+              const d = String(dt.getDate()).padStart(2, "0");
+              const hh = String(dt.getHours()).padStart(2, "0");
+              const mm = String(dt.getMinutes()).padStart(2, "0");
+              initialAuditDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
+            }
+          }
+        }
+        setAuditDateTime(initialAuditDateTime);
+
         // Cargar nuevos campos de fibra
         setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 16);
         setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
@@ -209,7 +237,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     try {
       const [resSub, resUsers] = await Promise.all([
         fetch("/api/status"),
-        isAdmin ? fetch("/api/users") : Promise.resolve(null),
+        canEditAudit ? fetch("/api/users") : Promise.resolve(null),
       ]);
       
       if (resSub.ok) setSubStatuses(await resSub.json());
@@ -217,7 +245,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     } catch (e) {
       console.error(e);
     }
-  }, [isAdmin]);
+  }, [canEditAudit]);
 
   const loadPendingUploads = useCallback(async () => {
     if (!cto?.id) return;
@@ -453,6 +481,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           status: targetStatus,
           subStatusId: subStatusId || null,
           assignedToId: targetAssignedToId || null,
+          auditedById: canEditAudit ? (auditedById || null) : undefined,
+          auditDateTime: canEditAudit && auditDateTime ? auditDateTime : undefined,
           notas,
           commentText,
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
@@ -1038,20 +1068,49 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
               )}
 
-              {isAdmin && (
+              {canEditAudit && (
+                <div style={{ marginBottom: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Asignar Técnico</label>
+                    <select 
+                      className="input-field" 
+                      value={assignedToId} 
+                      onChange={e => setAssignedToId(e.target.value)}
+                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", width: "100%" }}
+                    >
+                      <option value="">Sin asignar</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Auditado Por</label>
+                    <select 
+                      className="input-field" 
+                      value={auditedById} 
+                      onChange={e => setAuditedById(e.target.value)}
+                      style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", width: "100%" }}
+                    >
+                      <option value="">Sin auditor</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {canEditAudit && (
                 <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Asignar Técnico</label>
-                  <select 
-                    className="input-field" 
-                    value={assignedToId} 
-                    onChange={e => setAssignedToId(e.target.value)}
-                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                  >
-                    <option value="">Sin asignar</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
-                    ))}
-                  </select>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Fecha y Hora de Auditoría</label>
+                  <input 
+                    type="datetime-local" 
+                    className="input-field"
+                    value={auditDateTime}
+                    onChange={e => setAuditDateTime(e.target.value)}
+                    style={{ padding: "8px 12px", minHeight: "44px", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", width: "100%" }}
+                  />
                 </div>
               )}
 
@@ -1187,8 +1246,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   <label className="btn" style={{ flex: 2, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", justifyContent: "center", alignItems: "center" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
                       {uploading ? "Subiendo..." : "Subir Fotos"}
                     </span>
@@ -1532,14 +1592,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "16px" }}>
             {/* Fila superior: Título y Cerrar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-              <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--primary-color)", flexShrink: 0 }}>
+              <h2 style={{ fontSize: "0.85rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--primary-color)", flexShrink: 0 }}>
                   <rect x="3" y="3" width="18" height="18" rx="2" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <path d="M21 15l-5-5L5 21" />
                 </svg>
-                <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
-                  Evidencias - CTO {cto.num}
+                <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", fontSize: "0.85rem" }}>
+                  CTO {cto.num}
                 </span>
               </h2>
               <button

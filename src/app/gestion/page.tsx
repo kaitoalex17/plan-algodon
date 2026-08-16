@@ -277,6 +277,58 @@ export default function GestionDashboard() {
               </p>
             </div>
           </Link>
+
+          {/* Card 3: Reporte por Período */}
+          <Link href="/admin/period-summary" style={{ textDecoration: "none" }}>
+            <div style={{
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "16px",
+              padding: "2rem",
+              cursor: "pointer",
+              transition: "transform 0.2s, background 0.2s, border-color 0.2s",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-4px)";
+              e.currentTarget.style.background = "#243249";
+              e.currentTarget.style.borderColor = "#38bdf8";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.background = "#1e293b";
+              e.currentTarget.style.borderColor = "#334155";
+            }}
+            >
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "10px",
+                background: "rgba(56, 189, 248, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#38bdf8"
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.2rem", fontWeight: 800, color: "white" }}>
+                Informe por Período de Auditoría
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: "1.4" }}>
+                Filtra por rango de fechas (semanal, quincenal, mensual), consulta auditorías históricas y descarga informes consolidados en PDF o Excel con fecha.
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Footer */}

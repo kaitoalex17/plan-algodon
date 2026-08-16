@@ -20,6 +20,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         assignedTo: {
           select: { id: true, name: true, email: true, color: true }
         },
+        auditedBy: {
+          select: { id: true, name: true, email: true, color: true }
+        },
         subStatus: true,
         images: true,
         comments: {
@@ -72,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const { 
-      status, subStatusId, assignedToId, auditedById, notas, commentText,
+      status, subStatusId, assignedToId, auditedById, auditDateTime, notas, commentText,
       num, numeroNuevo, lat, lng, municipio, colocacion,
       puertosTotal, puertosOcupados, potenciaDbm, cierreSeguridad, etiquetadoCorrecto,
       zona, cluster, category,
@@ -102,12 +105,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (auditedById !== undefined && auditedById !== oldCto.auditedById) {
-      updateData.auditedById = auditedById;
+      updateData.auditedById = auditedById || null;
       if (auditedById) {
         const u = await prisma.user.findUnique({ where: { id: auditedById } });
         historyActions.push(`Auditado por: ${u?.name || u?.email || 'N/A'}`);
       } else {
         historyActions.push("Quitó el auditor");
+      }
+    }
+
+    if (auditDateTime) {
+      const customAuditTimestamp = new Date(auditDateTime);
+      if (!isNaN(customAuditTimestamp.getTime())) {
+        const formattedDate = customAuditTimestamp.toLocaleString("es-ES", { timeZone: "Europe/Madrid" });
+        historyActions.push(`Fecha/Hora auditoría modificada a: ${formattedDate}`);
+
+        // Actualizar el timestamp del log de auditoría previo si existe
+        const lastAuditLog = await prisma.history.findFirst({
+          where: {
+            ctoId: id,
+            OR: [
+              { action: { contains: "a correcto", mode: "insensitive" } },
+              { action: { contains: "a fallo", mode: "insensitive" } }
+            ]
+          },
+          orderBy: { timestamp: "desc" }
+        });
+
+        if (lastAuditLog) {
+          await prisma.history.update({
+            where: { id: lastAuditLog.id },
+            data: { timestamp: customAuditTimestamp }
+          });
+        }
       }
     }
 
