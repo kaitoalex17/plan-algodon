@@ -192,24 +192,17 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         
         setAuditedById(data.auditedById || "");
 
-        // Extraer fecha y hora de auditoría del historial
+        // Extraer fecha y hora de auditoría solo si está auditada
         let initialAuditDateTime = "";
-        if (data.history && data.history.length > 0) {
-          const auditLog = data.history.find((h: any) => 
-            (h.action || "").toLowerCase().includes("a correcto") || 
-            (h.action || "").toLowerCase().includes("a fallo")
-          ) || data.history[0];
-
-          if (auditLog && auditLog.timestamp) {
-            const dt = new Date(auditLog.timestamp);
-            if (!isNaN(dt.getTime())) {
-              const y = dt.getFullYear();
-              const m = String(dt.getMonth() + 1).padStart(2, "0");
-              const d = String(dt.getDate()).padStart(2, "0");
-              const hh = String(dt.getHours()).padStart(2, "0");
-              const mm = String(dt.getMinutes()).padStart(2, "0");
-              initialAuditDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
-            }
+        if (data.auditDateTime) {
+          const dt = new Date(data.auditDateTime);
+          if (!isNaN(dt.getTime())) {
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, "0");
+            const d = String(dt.getDate()).padStart(2, "0");
+            const hh = String(dt.getHours()).padStart(2, "0");
+            const mm = String(dt.getMinutes()).padStart(2, "0");
+            initialAuditDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
           }
         }
         setAuditDateTime(initialAuditDateTime);

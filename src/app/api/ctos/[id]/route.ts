@@ -57,7 +57,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }));
     }
 
-    return NextResponse.json(cto);
+    // Buscar si existe un registro de auditoría en el historial
+    let auditDateTime = null;
+    if (cto.history && cto.history.length > 0 && cto.status !== "PENDIENTE") {
+      const auditLog = cto.history.find((h: any) => 
+        (h.action || "").toLowerCase().includes("a correcto") || 
+        (h.action || "").toLowerCase().includes("a fallo") ||
+        (h.action || "").toLowerCase().includes("auditoría")
+      );
+      if (auditLog && auditLog.timestamp) {
+        auditDateTime = auditLog.timestamp.toISOString();
+      }
+    }
+
+    return NextResponse.json({
+      ...cto,
+      auditDateTime
+    });
   } catch (error: any) {
     console.error("Error obteniendo detalles de CTO:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -136,6 +152,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           await prisma.history.update({
             where: { id: lastAuditLog.id },
             data: { timestamp: customAuditTimestamp }
+          });
+        } else {
+          // Si no existía un log de auditoría previo, creamos uno específico con ese timestamp
+          await prisma.history.create({
+            data: {
+              action: `Cambió estado de ${oldCto.status} a ${updateData.status || oldCto.status}`,
+              ctoId: id,
+              userId: auditedById || userId,
+              timestamp: customAuditTimestamp
+            }
           });
         }
       }
