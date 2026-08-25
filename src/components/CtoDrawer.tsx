@@ -129,8 +129,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   }
   const [portsList, setPortsList] = useState<PortItem[]>([]);
   const [showVisualPortsViewer, setShowVisualPortsViewer] = useState(false);
+  const [fillRangeInput, setFillRangeInput] = useState<string>("");
 
-  // Sincronizar estado de los puertos al abrir cualquiera de los dos modales
+  // Sincronizar estado de los puertos al abrir cualquiera de los dos modales (siempre por defecto 8)
   const syncPortsData = useCallback(() => {
     let savedCap = 8;
     let savedPorts: PortItem[] | null = null;
@@ -142,17 +143,22 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           if (parsed.puertosTotal) savedCap = parsed.puertosTotal;
         }
       } catch (e) {}
+    } else if (details?.puertosTotal) {
+      savedCap = details.puertosTotal;
     }
-    const currentTot = puertosTotal ? parseInt(String(puertosTotal)) : savedCap;
     const validCapacities = [8, 16, 24, 32, 40, 48];
-    const initialCap = validCapacities.includes(currentTot) ? currentTot : 8;
+    const initialCap = validCapacities.includes(savedCap) ? savedCap : 8;
     setPortsCapacity(initialCap);
 
-    const occCount = puertosOcupados ? parseInt(String(puertosOcupados)) : 0;
+    const occCount = (details?.puertosOcupados !== null && details?.puertosOcupados !== undefined) ? parseInt(String(details.puertosOcupados)) : 0;
     const list: PortItem[] = [];
     for (let i = 1; i <= initialCap; i++) {
       if (savedPorts && savedPorts[i - 1]) {
-        list.push(savedPorts[i - 1]);
+        list.push({
+          id: i,
+          status: savedPorts[i - 1].status || "LIBRE",
+          customNumber: savedPorts[i - 1].customNumber || ""
+        });
       } else if (i <= occCount) {
         list.push({ id: i, status: "OCUPADO", customNumber: "" });
       } else {
@@ -160,7 +166,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       }
     }
     setPortsList(list);
-  }, [details?.formDataJson, puertosTotal, puertosOcupados]);
+  }, [details?.formDataJson, details?.puertosTotal, details?.puertosOcupados]);
 
   useEffect(() => {
     if (showPortsModal || showVisualPortsViewer) {
@@ -174,7 +180,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       const list: PortItem[] = [];
       for (let i = 1; i <= newCap; i++) {
         if (prev[i - 1]) {
-          list.push(prev[i - 1]);
+          list.push({
+            id: i,
+            status: prev[i - 1].status || "LIBRE",
+            customNumber: prev[i - 1].customNumber || ""
+          });
         } else {
           list.push({ id: i, status: "LIBRE", customNumber: "" });
         }
@@ -216,33 +226,66 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     setPortsList(prev => prev.map(p => ({ ...p, status: "OCUPADO", customNumber: "" })));
   };
 
+  const handleFillRange = (numOccupied: number) => {
+    if (isNaN(numOccupied) || numOccupied < 0) return;
+    const capped = Math.min(numOccupied, portsCapacity);
+    setPortsList(prev => {
+      const copy: PortItem[] = [];
+      for (let i = 1; i <= portsCapacity; i++) {
+        if (i <= capped) {
+          copy.push({ id: i, status: "OCUPADO", customNumber: "" });
+        } else {
+          copy.push({ id: i, status: "LIBRE", customNumber: "" });
+        }
+      }
+      return copy;
+    });
+  };
+
   const handleSavePortsModal = async () => {
-    const occupiedCount = portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
+    // 1. Construir lista completa y garantizada para TODOS los puertos (1 hasta portsCapacity)
+    const fullList: PortItem[] = [];
+    for (let i = 1; i <= portsCapacity; i++) {
+      const existing = portsList.find(p => p.id === i) || portsList[i - 1];
+      if (existing) {
+        fullList.push({
+          id: i,
+          status: existing.status || "LIBRE",
+          customNumber: existing.status === "OTRO" ? (existing.customNumber || "") : ""
+        });
+      } else {
+        fullList.push({ id: i, status: "LIBRE", customNumber: "" });
+      }
+    }
+
+    const occupiedCount = fullList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
     setPuertosTotal(portsCapacity);
     setPuertosOcupados(occupiedCount);
+    setPortsList(fullList);
 
     // Preparar formDataJson para guardar la configuración de puertos
     let currentFormData: any = {};
     if (details?.formDataJson) {
       try { currentFormData = JSON.parse(details.formDataJson); } catch (e) {}
     }
-    currentFormData.fiberPorts = portsList;
+    currentFormData.fiberPorts = fullList;
     currentFormData.puertosTotal = portsCapacity;
     currentFormData.puertosOcupados = occupiedCount;
     const newFormDataJson = JSON.stringify(currentFormData);
 
-    // Generar comentario estructurado exacto
-    const commentLines = portsList.map((p) => {
-      if (p.status === "LIBRE") {
-        return `Puerto ${p.id}: LIBRE`;
-      } else if (p.status === "OCUPADO") {
-        return `Puerto ${p.id}: OCUPADO/NO LOCALIZADO`;
+    // Generar comentario estructurado exacto de TODOS los puertos (del 1 al portsCapacity) sin omitir ninguno
+    const commentLines: string[] = [];
+    for (let i = 1; i <= portsCapacity; i++) {
+      const p = fullList[i - 1];
+      if (p.status === "OCUPADO") {
+        commentLines.push(`Puerto ${i}: OCUPADO/NO LOCALIZADO`);
       } else if (p.status === "OTRO") {
-        const num = p.customNumber.trim() ? p.customNumber.trim() : "SIN NÚMERO";
-        return `Puerto ${p.id}: ${num}`;
+        const num = p.customNumber && p.customNumber.trim() ? p.customNumber.trim() : "SIN NÚMERO";
+        commentLines.push(`Puerto ${i}: ${num}`);
+      } else {
+        commentLines.push(`Puerto ${i}: LIBRE`);
       }
-      return `Puerto ${p.id}: LIBRE`;
-    });
+    }
     const portsComment = commentLines.join("\n");
 
     try {
@@ -2569,11 +2612,148 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 );
               })()}
 
-              {/* 3. Grid de Puertos */}
+              {/* 3. Acciones de Relleno Rápido (Caja de Herramientas Superior) */}
+              <div style={{ background: "var(--bg-color)", padding: "14px 16px", borderRadius: "14px", border: "1.5px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-color)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>⚡</span> Relleno Rápido de Puertos ({portsCapacity} P):
+                  </span>
+                  <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>
+                    Aplica estados a múltiples puertos con 1 clic
+                  </span>
+                </div>
+
+                {/* Botones de Relleno Global */}
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleFillAllLibre}
+                    style={{
+                      flex: "1 1 180px",
+                      minHeight: "40px",
+                      padding: "8px 14px",
+                      background: "#dcfce7",
+                      color: "#166534",
+                      border: "1.5px solid #86efac",
+                      borderRadius: "10px",
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      boxShadow: "0 2px 6px rgba(22,163,74,0.12)",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    🟢 Marcar TODOS como LIBRE (1 al {portsCapacity})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleFillAllOcupados}
+                    style={{
+                      flex: "1 1 180px",
+                      minHeight: "40px",
+                      padding: "8px 14px",
+                      background: "#fee2e2",
+                      color: "#991b1b",
+                      border: "1.5px solid #fca5a5",
+                      borderRadius: "10px",
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      boxShadow: "0 2px 6px rgba(220,38,38,0.12)",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    🔴 Marcar TODOS como OCUPADOS (1 al {portsCapacity})
+                  </button>
+                </div>
+
+                {/* Relleno por Rango (Ocupados del 1 al X) */}
+                <div style={{ background: "var(--card-bg)", padding: "10px 12px", borderRadius: "10px", border: "1px solid var(--border-color)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-color)" }}>
+                    Marcar Ocupados del 1 hasta el puerto:
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {[1, 2, 3, 4, 6, 8].filter(n => n <= portsCapacity).map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => handleFillRange(n)}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border-color)",
+                          background: "var(--bg-color)",
+                          color: "var(--text-color)",
+                          fontWeight: 800,
+                          fontSize: "0.75rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        1-{n}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min="0"
+                      max={portsCapacity}
+                      placeholder="#"
+                      value={fillRangeInput}
+                      onChange={e => setFillRangeInput(e.target.value)}
+                      style={{
+                        width: "48px",
+                        padding: "4px 6px",
+                        fontSize: "0.82rem",
+                        borderRadius: "6px",
+                        border: "1.5px solid var(--primary-color)",
+                        background: "var(--bg-color)",
+                        color: "var(--text-color)",
+                        textAlign: "center",
+                        fontWeight: 800
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = parseInt(fillRangeInput);
+                        if (!isNaN(val)) handleFillRange(val);
+                      }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "var(--primary-color)",
+                        color: "white",
+                        fontWeight: 800,
+                        fontSize: "0.78rem",
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Grid de Asignación Puerto a Puerto */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 800, marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-color)" }}>
-                  Asignar Estado Puerto a Puerto (1 al {portsCapacity}):
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-color)" }}>
+                    Asignación Individual (Puertos 1 al {portsCapacity}):
+                  </label>
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                    {portsList.length} de {portsCapacity} puertos configurados
+                  </span>
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(215px, 1fr))", gap: "10px" }}>
                   {portsList.map((port, idx) => {
                     const isLibre = port.status === "LIBRE";
@@ -2707,57 +2887,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
               </div>
 
-              {/* 4. Botones Rápidos de Autocompletado */}
-              <div style={{ background: "var(--bg-color)", padding: "12px 14px", borderRadius: "12px", border: "1px solid var(--border-color)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                <span style={{ width: "100%", fontSize: "0.75rem", color: "#64748b", fontWeight: 800, textTransform: "uppercase" }}>
-                  ⚡ Acciones de Relleno Rápido:
-                </span>
-                <button
-                  type="button"
-                  onClick={handleFillAllLibre}
-                  style={{
-                    flex: 1,
-                    minHeight: "38px",
-                    padding: "8px 12px",
-                    background: "#dcfce7",
-                    color: "#166534",
-                    border: "1.5px solid #86efac",
-                    borderRadius: "8px",
-                    fontWeight: 800,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px"
-                  }}
-                >
-                  🟢 Completar el resto como LIBRE
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFillAllOcupados}
-                  style={{
-                    flex: 1,
-                    minHeight: "38px",
-                    padding: "8px 12px",
-                    background: "#fee2e2",
-                    color: "#991b1b",
-                    border: "1.5px solid #fca5a5",
-                    borderRadius: "8px",
-                    fontWeight: 800,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px"
-                  }}
-                >
-                  🔴 Completar el resto como OCUPADOS
-                </button>
-              </div>
-
             </div>
 
             {/* Footer */}
@@ -2779,7 +2908,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Guardar y Ver Panel ({portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length} Ocupados)
+                Guardar y Ver Panel ({portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length} de {portsCapacity} Ocupados)
               </button>
             </div>
 
