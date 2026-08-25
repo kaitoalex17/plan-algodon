@@ -126,7 +126,7 @@ export default function StatusConfigPage() {
               transition: "all 0.2s"
             }}
           >
-            Programadas (Pendientes de instalar)
+            Programadas (Reparos y averías)
           </button>
         </div>
 
@@ -135,7 +135,7 @@ export default function StatusConfigPage() {
           {/* Formulario Crear/Editar */}
           <div className="glass-panel" style={{ padding: "1.5rem", background: "white", height: "fit-content" }}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1.25rem" }}>
-              {editingId ? "Editar Subestado" : "Nuevo Subestado"} ({activeCategory === "AUDITORIA" ? "Auditoría" : "Programada"})
+              {editingId ? "Editar Subestado" : "Nuevo Subestado"} ({activeCategory === "AUDITORIA" ? "Auditoría" : "Reparos"})
             </h3>
             
             <form onSubmit={handleSubmit}>

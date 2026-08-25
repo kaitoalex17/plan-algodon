@@ -117,6 +117,231 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [uploadProgress, setUploadProgress] = useState<{ percent: number; loaded: number; total: number } | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
+  const [markingReparo, setMarkingReparo] = useState(false);
+
+  // Estados para el Modal de Puertos (Botón Triángulo)
+  const [showPortsModal, setShowPortsModal] = useState(false);
+  const [portsCapacity, setPortsCapacity] = useState<number>(8);
+  interface PortItem {
+    id: number;
+    status: "LIBRE" | "OCUPADO" | "OTRO";
+    customNumber: string;
+  }
+  const [portsList, setPortsList] = useState<PortItem[]>([]);
+
+  // Sincronizar estado del modal de puertos al abrir
+  useEffect(() => {
+    if (showPortsModal) {
+      const currentTot = puertosTotal ? parseInt(String(puertosTotal)) : 8;
+      const validCapacities = [8, 16, 24, 32, 40, 48];
+      const initialCap = validCapacities.includes(currentTot) ? currentTot : 8;
+      setPortsCapacity(initialCap);
+
+      let savedPorts: PortItem[] | null = null;
+      if (details?.formDataJson) {
+        try {
+          const parsed = JSON.parse(details.formDataJson);
+          if (parsed?.fiberPorts && Array.isArray(parsed.fiberPorts)) {
+            savedPorts = parsed.fiberPorts;
+          }
+        } catch (e) {}
+      }
+
+      const occCount = puertosOcupados ? parseInt(String(puertosOcupados)) : 0;
+      const list: PortItem[] = [];
+      for (let i = 1; i <= initialCap; i++) {
+        if (savedPorts && savedPorts[i - 1]) {
+          list.push(savedPorts[i - 1]);
+        } else if (i <= occCount) {
+          list.push({ id: i, status: "OCUPADO", customNumber: "" });
+        } else {
+          list.push({ id: i, status: "LIBRE", customNumber: "" });
+        }
+      }
+      setPortsList(list);
+    }
+  }, [showPortsModal, puertosTotal, puertosOcupados, details?.formDataJson]);
+
+  const handlePortsCapacityChange = (newCap: number) => {
+    setPortsCapacity(newCap);
+    setPortsList(prev => {
+      const list: PortItem[] = [];
+      for (let i = 1; i <= newCap; i++) {
+        if (prev[i - 1]) {
+          list.push(prev[i - 1]);
+        } else {
+          list.push({ id: i, status: "LIBRE", customNumber: "" });
+        }
+      }
+      return list;
+    });
+  };
+
+  const handlePortStatusChange = (index: number, newStatus: "LIBRE" | "OCUPADO" | "OTRO") => {
+    setPortsList(prev => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        status: newStatus,
+        customNumber: newStatus === "OTRO" ? copy[index].customNumber : ""
+      };
+      return copy;
+    });
+  };
+
+  const handlePortNumberChange = (index: number, val: string) => {
+    const numericVal = val.replace(/\D/g, "");
+    setPortsList(prev => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        status: "OTRO",
+        customNumber: numericVal
+      };
+      return copy;
+    });
+  };
+
+  const handleFillAllLibre = () => {
+    setPortsList(prev => prev.map(p => ({ ...p, status: "LIBRE", customNumber: "" })));
+  };
+
+  const handleFillAllOcupados = () => {
+    setPortsList(prev => prev.map(p => ({ ...p, status: "OCUPADO", customNumber: "" })));
+  };
+
+  const handleSavePortsModal = async () => {
+    const occupiedCount = portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
+    setPuertosTotal(portsCapacity);
+    setPuertosOcupados(occupiedCount);
+
+    // Preparar formDataJson para guardar la configuración de puertos
+    let currentFormData: any = {};
+    if (details?.formDataJson) {
+      try { currentFormData = JSON.parse(details.formDataJson); } catch (e) {}
+    }
+    currentFormData.fiberPorts = portsList;
+    currentFormData.puertosTotal = portsCapacity;
+    currentFormData.puertosOcupados = occupiedCount;
+    const newFormDataJson = JSON.stringify(currentFormData);
+
+    try {
+      await fetch(`/api/ctos/${cto.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          puertosTotal: portsCapacity,
+          puertosOcupados: occupiedCount,
+          formDataJson: newFormDataJson
+        })
+      });
+      fetchCtoDetails();
+    } catch (e) {
+      console.error(e);
+    }
+
+    setShowPortsModal(false);
+  };
+
+  const handleMarcarReparo = async () => {
+    if (!cto?.id) return;
+    const techName = session?.user?.name || session?.user?.email || "Técnico";
+    
+    if (!confirm(`¿Confirmas que deseas marcar esta CTO (${cto.num}) como REPARADA por ${techName}?`)) {
+      return;
+    }
+
+    setMarkingReparo(true);
+
+    // Obtener geolocalización del móvil
+    let gpsLocation: string | null = null;
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+        gpsLocation = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+      } catch (geoErr) {
+        console.warn("No se pudo obtener GPS para la reparación:", geoErr);
+      }
+    }
+
+    try {
+      const currentUserId = (session?.user as any)?.id;
+      const nowIso = new Date().toISOString();
+      const commentMsg = `Esta CTO fue reparada por ${techName}.`;
+      const customActionText = `Reparada por ${techName} (Marc. Reparo CTO)`;
+
+      const res = await fetch(`/api/ctos/${cto.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "CORRECTO",
+          assignedToId: null, // Pasa a Sin Asignar
+          auditedById: currentUserId || null, // Auditado por quien presiona
+          auditDateTime: nowIso,
+          commentText: commentMsg,
+          location: gpsLocation,
+          customAction: customActionText
+        })
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setStatus("CORRECTO");
+        setAssignedToId("");
+        if (currentUserId) setAuditedById(currentUserId);
+        setAuditDateTime(nowIso);
+        setDetails(updated);
+        
+        const fullUpdatedCto = {
+          ...cto,
+          status: "CORRECTO",
+          assignedToId: null,
+          assignedTo: null,
+          auditedById: currentUserId || null,
+          auditedBy: session?.user ? { id: currentUserId, name: techName } : null
+        };
+        onUpdate(fullUpdatedCto);
+        fetchCtoDetails();
+        alert(`✅ ¡CTO ${cto.num} marcada como REPARADA con éxito!\n\n• Estado: CORRECTO\n• Reparado por: ${techName}\n• Asignación: Sin asignar${gpsLocation ? `\n• GPS: ${gpsLocation}` : ""}`);
+      } else {
+        const errData = await res.json();
+        alert(`Error al marcar como reparada: ${errData.error || "Error del servidor"}`);
+      }
+    } catch (err: any) {
+      console.error("Error en handleMarcarReparo:", err);
+      alert(`Error de conexión: ${err.message}`);
+    } finally {
+      setMarkingReparo(false);
+    }
+  };
+
+  // Identificar el primer auditor histórico y el último registro de reparación
+  const originalAuditLog = useMemo(() => {
+    if (!details?.history || details.history.length === 0) return null;
+    const auditLogs = [...details.history].filter((h: any) => 
+      (h.action || "").toLowerCase().includes("a correcto") || 
+      (h.action || "").toLowerCase().includes("a fallo") ||
+      (h.action || "").toLowerCase().includes("auditoría") ||
+      (h.action || "").toLowerCase().includes("auditado por")
+    );
+    if (auditLogs.length === 0) return null;
+    return auditLogs[auditLogs.length - 1]; // El más antiguo
+  }, [details?.history]);
+
+  const lastRepairLog = useMemo(() => {
+    if (!details?.history || details.history.length === 0) return null;
+    return details.history.find((h: any) => 
+      (h.action || "").toLowerCase().includes("reparad") || 
+      (h.action || "").toLowerCase().includes("reparo")
+    );
+  }, [details?.history]);
+
   const [cacheKey, setCacheKey] = useState(Date.now());
   const [zoomScale, setZoomScale] = useState(1);
   const [showFormSheetModal, setShowFormSheetModal] = useState(false);
@@ -793,6 +1018,34 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Zona:</strong> {cto.zona || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Cluster:</strong> {cto.cluster || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Coordenadas:</strong> {cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</p>
+
+              {/* Información de Primer Auditor y Reparador */}
+              {(originalAuditLog || lastRepairLog) && (
+                <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed var(--border-color)", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {originalAuditLog && (
+                    <div style={{ fontSize: "0.82rem", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🔍 <strong>Primer auditor:</strong> {originalAuditLog.user?.name || "Técnico"}</span>
+                      <span style={{ fontSize: "0.75rem", opacity: 0.7 }}>({new Date(originalAuditLog.timestamp).toLocaleDateString("es-ES")})</span>
+                    </div>
+                  )}
+                  {lastRepairLog && (
+                    <div style={{ fontSize: "0.82rem", color: "#16a34a", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🛠️ <strong>Reparado por:</strong> {lastRepairLog.user?.name || "Técnico"}</span>
+                      <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>({new Date(lastRepairLog.timestamp).toLocaleDateString("es-ES")})</span>
+                      {lastRepairLog.location && (
+                        <a 
+                          href={`https://maps.google.com/?q=${lastRepairLog.location}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "0.75rem", color: "#2563eb", textDecoration: "underline" }}
+                        >
+                          📍 GPS
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               
               <div style={{ display: "flex", gap: "8px", marginTop: "0.75rem" }}>
                 <button onClick={openGoogleMaps} className="btn btn-primary" style={{ flex: 1, minHeight: "34px", fontSize: "0.8rem", padding: "4px 8px" }}>
@@ -861,6 +1114,37 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   Antala
                 </button>
               </div>
+
+              {/* Botón Destacado: Marc. Reparo CTO */}
+              <button 
+                type="button"
+                onClick={handleMarcarReparo}
+                disabled={markingReparo}
+                className="btn" 
+                style={{ 
+                  width: "100%", 
+                  minHeight: "40px", 
+                  marginTop: "0.6rem",
+                  background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", 
+                  color: "white", 
+                  fontSize: "0.88rem", 
+                  padding: "6px 12px", 
+                  fontWeight: 800, 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center", 
+                  gap: "8px",
+                  borderRadius: "8px",
+                  boxShadow: "0 2px 5px rgba(217, 119, 6, 0.3)",
+                  opacity: markingReparo ? 0.7 : 1,
+                  cursor: markingReparo ? "wait" : "pointer"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                </svg>
+                {markingReparo ? "Registrando Reparación y GPS..." : "Marc. Reparo CTO"}
+              </button>
             </div>
 
             {/* Formulario de Auditoría */}
@@ -868,23 +1152,22 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "var(--text-color)" }}>Auditar CTO</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  {/* Icono Google Drive (deshabilitado por ahora) */}
+                  {/* Icono Triángulo: Configuración interactiva de Puertos de Fibra */}
                   <button
                     type="button"
-                    onClick={() => {/* TODO: Drive integration */}}
-                    title="Google Drive (próximamente)"
+                    onClick={() => setShowPortsModal(true)}
+                    title="Configurar Puertos de Fibra (Libres / Ocupados)"
                     style={{
-                      background: "var(--border-color)",
-                      color: "var(--text-color)",
-                      border: "none",
+                      background: (puertosOcupados && parseInt(String(puertosOcupados)) > 0) ? "rgba(239, 68, 68, 0.15)" : "var(--border-color)",
+                      color: (puertosOcupados && parseInt(String(puertosOcupados)) > 0) ? "#ef4444" : "var(--text-color)",
+                      border: (puertosOcupados && parseInt(String(puertosOcupados)) > 0) ? "1.5px solid #ef4444" : "none",
                       borderRadius: "8px",
                       width: "38px",
                       height: "38px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      cursor: "default",
-                      opacity: 0.5,
+                      cursor: "pointer",
                       transition: "all 0.2s"
                     }}
                   >
@@ -1287,7 +1570,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 />
               </div>
 
-              {/* Checkbox Programada */}
+              {/* Checkbox Reparos */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <input 
                   type="checkbox" 
@@ -1297,7 +1580,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   style={{ width: "18px", height: "18px", accentColor: "var(--primary-color)", cursor: "pointer" }}
                 />
                 <label htmlFor="isProgramadaCheckbox" style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)", cursor: "pointer" }}>
-                  Programada (Trabajo planeado / pre-trabajo)
+                  Reparos (Trabajo de reparación / avería)
                 </label>
               </div>
 
@@ -2108,6 +2391,301 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 style={{ flex: 2, justifyContent: "center" }}
               >
                 Entendido
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE GESTIÓN DE PUERTOS DE FIBRA (BOTÓN TRIÁNGULO) */}
+      {showPortsModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "700px", maxHeight: "90vh", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", borderRadius: "14px", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
+            
+            {/* Header */}
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color)" }}>
+              <div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L2 19.5h20L12 2z" />
+                    <path d="M2 19.5h20" />
+                  </svg>
+                  Gestión de Puertos — CTO {cto.num}
+                </h2>
+                <span style={{ fontSize: "0.78rem", color: "#64748b" }}>Indica el estado individual de cada puerto de fibra óptica</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowPortsModal(false)}
+                style={{ background: "var(--border-color)", border: "none", borderRadius: "50%", width: "30px", height: "30px", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "14px" }}>
+              
+              {/* 1. Selector de Cantidad de Puertos */}
+              <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase", color: "var(--text-color)" }}>
+                  1. Cantidad Total de Puertos:
+                </label>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {[8, 16, 24, 32, 40, 48].map(cap => {
+                    const isSel = portsCapacity === cap;
+                    return (
+                      <button
+                        key={cap}
+                        type="button"
+                        onClick={() => handlePortsCapacityChange(cap)}
+                        style={{
+                          flex: "1 1 50px",
+                          minHeight: "34px",
+                          padding: "6px 10px",
+                          borderRadius: "8px",
+                          fontWeight: 800,
+                          fontSize: "0.85rem",
+                          cursor: "pointer",
+                          border: isSel ? "2px solid var(--primary-color)" : "1px solid var(--border-color)",
+                          background: isSel ? "var(--primary-color)" : "var(--card-bg)",
+                          color: isSel ? "white" : "var(--text-color)",
+                          transition: "all 0.15s"
+                        }}
+                      >
+                        {cap} P
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Resumen y Contadores */}
+              {(() => {
+                const occCount = portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
+                const libCount = portsCapacity - occCount;
+                return (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "var(--bg-color)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                      <span style={{ fontSize: "0.7rem", color: "#64748b", display: "block", fontWeight: 600 }}>Total</span>
+                      <strong style={{ fontSize: "1.1rem", color: "var(--text-color)" }}>{portsCapacity}</strong>
+                    </div>
+                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "#dcfce7", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                      <span style={{ fontSize: "0.7rem", color: "#166534", display: "block", fontWeight: 600 }}>Libres</span>
+                      <strong style={{ fontSize: "1.1rem", color: "#166534" }}>{libCount}</strong>
+                    </div>
+                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "#fee2e2", borderRadius: "8px", border: "1px solid #fecaca" }}>
+                      <span style={{ fontSize: "0.7rem", color: "#991b1b", display: "block", fontWeight: 600 }}>Ocupados</span>
+                      <strong style={{ fontSize: "1.1rem", color: "#991b1b" }}>{occCount}</strong>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 3. Grid de Puertos */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase", color: "var(--text-color)" }}>
+                  2. Asignación de Puertos (1 al {portsCapacity}):
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "8px" }}>
+                  {portsList.map((port, idx) => {
+                    const isLibre = port.status === "LIBRE";
+                    const isOcupado = port.status === "OCUPADO";
+                    const isOtro = port.status === "OTRO";
+
+                    return (
+                      <div 
+                        key={port.id} 
+                        style={{ 
+                          background: "var(--bg-color)", 
+                          padding: "8px 10px", 
+                          borderRadius: "8px", 
+                          border: isOcupado ? "1.5px solid #fca5a5" : isOtro ? "1.5px solid #fde047" : isLibre ? "1.5px solid #86efac" : "1px solid var(--border-color)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "var(--text-color)" }}>
+                            Puerto {port.id}
+                          </span>
+                          <span style={{ 
+                            fontSize: "0.68rem", 
+                            fontWeight: 700, 
+                            padding: "1px 6px", 
+                            borderRadius: "10px",
+                            background: isOcupado ? "#fee2e2" : isOtro ? "#fef9c3" : "#dcfce7",
+                            color: isOcupado ? "#991b1b" : isOtro ? "#854d0e" : "#166534"
+                          }}>
+                            {isOcupado ? "OCUPADO" : isOtro ? `OTRO (${port.customNumber || "#"})` : "LIBRE"}
+                          </span>
+                        </div>
+
+                        {/* Botones de Estado */}
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {/* Botón LIBRE (Verde suave) */}
+                          <button
+                            type="button"
+                            onClick={() => handlePortStatusChange(idx, "LIBRE")}
+                            style={{
+                              flex: 1,
+                              padding: "4px 2px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              border: isLibre ? "2px solid #16a34a" : "1px solid #bbf7d0",
+                              background: isLibre ? "#86efac" : "#dcfce7",
+                              color: "#166534",
+                              transition: "all 0.1s"
+                            }}
+                          >
+                            Libre
+                          </button>
+
+                          {/* Botón OCUPADO (Rojo suave) */}
+                          <button
+                            type="button"
+                            onClick={() => handlePortStatusChange(idx, "OCUPADO")}
+                            style={{
+                              flex: 1,
+                              padding: "4px 2px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              border: isOcupado ? "2px solid #dc2626" : "1px solid #fecaca",
+                              background: isOcupado ? "#fca5a5" : "#fee2e2",
+                              color: "#991b1b",
+                              transition: "all 0.1s"
+                            }}
+                          >
+                            Ocupado
+                          </button>
+
+                          {/* Botón OTRO (Amarillo suave) */}
+                          <button
+                            type="button"
+                            onClick={() => handlePortStatusChange(idx, "OTRO")}
+                            style={{
+                              flex: 1,
+                              padding: "4px 2px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              border: isOtro ? "2px solid #ca8a04" : "1px solid #fef08a",
+                              background: isOtro ? "#fde047" : "#fef9c3",
+                              color: "#854d0e",
+                              transition: "all 0.1s"
+                            }}
+                          >
+                            Otro #
+                          </button>
+                        </div>
+
+                        {/* Input numérico si está en modo OTRO */}
+                        {isOtro && (
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="Solo números..."
+                            value={port.customNumber}
+                            onChange={(e) => handlePortNumberChange(idx, e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "4px 8px",
+                              fontSize: "0.8rem",
+                              borderRadius: "4px",
+                              border: "1.5px solid #ca8a04",
+                              background: "var(--card-bg)",
+                              color: "var(--text-color)",
+                              fontFamily: "monospace"
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 4. Botones Rápidos de Autocompletado */}
+              <div style={{ background: "var(--bg-color)", padding: "10px 12px", borderRadius: "10px", border: "1px solid var(--border-color)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ width: "100%", fontSize: "0.75rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                  Acciones Rápidas:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleFillAllLibre}
+                  style={{
+                    flex: 1,
+                    minHeight: "34px",
+                    padding: "6px 10px",
+                    background: "#dcfce7",
+                    color: "#166534",
+                    border: "1px solid #86efac",
+                    borderRadius: "6px",
+                    fontWeight: 700,
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px"
+                  }}
+                >
+                  🟢 Completar el resto como LIBRE
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFillAllOcupados}
+                  style={{
+                    flex: 1,
+                    minHeight: "34px",
+                    padding: "6px 10px",
+                    background: "#fee2e2",
+                    color: "#991b1b",
+                    border: "1px solid #fca5a5",
+                    borderRadius: "6px",
+                    fontWeight: 700,
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px"
+                  }}
+                >
+                  🔴 Completar el resto como OCUPADOS
+                </button>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border-color)", background: "var(--bg-color)", display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setShowPortsModal(false)}
+                className="btn"
+                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)", fontWeight: 600 }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePortsModal}
+                className="btn btn-primary"
+                style={{ flex: 2, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Aplicar y Guardar Puertos ({portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length} Ocupados)
               </button>
             </div>
 

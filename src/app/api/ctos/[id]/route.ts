@@ -295,13 +295,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       historyActions.push("Añadió un comentario");
     }
 
+    const location = body.location ? String(body.location).trim() : null;
+    const customAction = body.customAction ? String(body.customAction).trim() : null;
+    if (customAction) {
+      historyActions.unshift(customAction);
+    }
+
     // Registrar cambios en el historial
     if (historyActions.length > 0) {
       await prisma.history.create({
         data: {
           action: historyActions.join(" | "),
           ctoId: id,
-          userId: userId
+          userId: userId,
+          location: location
         }
       });
     }

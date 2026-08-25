@@ -163,7 +163,7 @@ export default function AdminPage() {
           <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#3b82f6', margin: 0 }}>{stats.ctosPendientes}</p>
         </div>
         <div className="glass-panel" style={{ padding: '1.25rem 1rem', textAlign: 'center', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-          <h3 style={{ color: '#8b5cf6', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Programadas</h3>
+          <h3 style={{ color: '#8b5cf6', fontSize: '0.78rem', textTransform: 'uppercase', marginBottom: '0.4rem', fontWeight: 700 }}>Reparos</h3>
           <p style={{ fontSize: '1.8rem', fontWeight: 800, color: '#8b5cf6', margin: 0 }}>{stats.programadasCount}</p>
         </div>
       </div>

@@ -49,11 +49,12 @@ export default function ImportPage() {
           throw new Error("El archivo está vacío o no contiene suficientes filas.");
         }
 
-        const headers = (rows[0] || []).map(h => String(h).trim().toLowerCase());
+        const rawHeaders = rows[0] || [];
+        const headers = Array.from(rawHeaders).map(h => (h !== undefined && h !== null) ? String(h).trim().toLowerCase() : "");
         
-        // Buscar columnas por cabecera
-        let ctoColIdx = headers.findIndex(h => h.includes("cto") || h === "numero" || h === "codigo");
-        let urlColIdx = headers.findIndex(h => h.includes("url_ficha") || h.includes("ficha") || h.includes("userside") || h.includes("url"));
+        // Buscar columnas por cabecera con validación de existencia
+        let ctoColIdx = headers.findIndex(h => typeof h === "string" && h.length > 0 && (h.includes("cto") || h === "numero" || h === "codigo"));
+        let urlColIdx = headers.findIndex(h => typeof h === "string" && h.length > 0 && (h.includes("url_ficha") || h.includes("ficha") || h.includes("userside") || h.includes("url")));
 
         // Si no se encuentran por cabecera, usar índices predeterminados: A (0) y O (14)
         if (ctoColIdx === -1) ctoColIdx = 0;
@@ -232,7 +233,7 @@ export default function ImportPage() {
                   fontSize: "0.8rem"
                 }}
               >
-                Programadas
+                Reparos
               </button>
             </div>
           </div>
@@ -317,7 +318,7 @@ export default function ImportPage() {
                   fontSize: "0.8rem"
                 }}
               >
-                Programadas
+                Reparos
               </button>
             </div>
           </div>
