@@ -642,8 +642,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
           {/* Botón Control Diario de Auditorías y Cierres */}
           <button
             onClick={() => {
-              if (isAdmin) {
-                router.push("/admin/daily-summary");
+              if (isAdmin || (session?.user as any)?.role === "GESTOR") {
+                window.location.href = "/admin/daily-summary";
               } else {
                 openStats();
               }

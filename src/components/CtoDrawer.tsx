@@ -128,39 +128,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     customNumber: string;
   }
   const [portsList, setPortsList] = useState<PortItem[]>([]);
+  const [showVisualPortsViewer, setShowVisualPortsViewer] = useState(false);
 
-  // Sincronizar estado del modal de puertos al abrir
-  useEffect(() => {
-    if (showPortsModal) {
-      const currentTot = puertosTotal ? parseInt(String(puertosTotal)) : 8;
-      const validCapacities = [8, 16, 24, 32, 40, 48];
-      const initialCap = validCapacities.includes(currentTot) ? currentTot : 8;
-      setPortsCapacity(initialCap);
-
-      let savedPorts: PortItem[] | null = null;
-      if (details?.formDataJson) {
-        try {
-          const parsed = JSON.parse(details.formDataJson);
-          if (parsed?.fiberPorts && Array.isArray(parsed.fiberPorts)) {
-            savedPorts = parsed.fiberPorts;
-          }
-        } catch (e) {}
-      }
-
-      const occCount = puertosOcupados ? parseInt(String(puertosOcupados)) : 0;
-      const list: PortItem[] = [];
-      for (let i = 1; i <= initialCap; i++) {
-        if (savedPorts && savedPorts[i - 1]) {
-          list.push(savedPorts[i - 1]);
-        } else if (i <= occCount) {
-          list.push({ id: i, status: "OCUPADO", customNumber: "" });
-        } else {
-          list.push({ id: i, status: "LIBRE", customNumber: "" });
+  // Sincronizar estado de los puertos al abrir cualquiera de los dos modales
+  const syncPortsData = useCallback(() => {
+    let savedCap = 8;
+    let savedPorts: PortItem[] | null = null;
+    if (details?.formDataJson) {
+      try {
+        const parsed = JSON.parse(details.formDataJson);
+        if (parsed?.fiberPorts && Array.isArray(parsed.fiberPorts)) {
+          savedPorts = parsed.fiberPorts;
+          if (parsed.puertosTotal) savedCap = parsed.puertosTotal;
         }
-      }
-      setPortsList(list);
+      } catch (e) {}
     }
-  }, [showPortsModal, puertosTotal, puertosOcupados, details?.formDataJson]);
+    const currentTot = puertosTotal ? parseInt(String(puertosTotal)) : savedCap;
+    const validCapacities = [8, 16, 24, 32, 40, 48];
+    const initialCap = validCapacities.includes(currentTot) ? currentTot : 8;
+    setPortsCapacity(initialCap);
+
+    const occCount = puertosOcupados ? parseInt(String(puertosOcupados)) : 0;
+    const list: PortItem[] = [];
+    for (let i = 1; i <= initialCap; i++) {
+      if (savedPorts && savedPorts[i - 1]) {
+        list.push(savedPorts[i - 1]);
+      } else if (i <= occCount) {
+        list.push({ id: i, status: "OCUPADO", customNumber: "" });
+      } else {
+        list.push({ id: i, status: "LIBRE", customNumber: "" });
+      }
+    }
+    setPortsList(list);
+  }, [details?.formDataJson, puertosTotal, puertosOcupados]);
+
+  useEffect(() => {
+    if (showPortsModal || showVisualPortsViewer) {
+      syncPortsData();
+    }
+  }, [showPortsModal, showVisualPortsViewer, syncPortsData]);
 
   const handlePortsCapacityChange = (newCap: number) => {
     setPortsCapacity(newCap);
@@ -225,6 +231,20 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     currentFormData.puertosOcupados = occupiedCount;
     const newFormDataJson = JSON.stringify(currentFormData);
 
+    // Generar comentario estructurado exacto
+    const commentLines = portsList.map((p) => {
+      if (p.status === "LIBRE") {
+        return `Puerto ${p.id}: LIBRE`;
+      } else if (p.status === "OCUPADO") {
+        return `Puerto ${p.id}: OCUPADO/NO LOCALIZADO`;
+      } else if (p.status === "OTRO") {
+        const num = p.customNumber.trim() ? p.customNumber.trim() : "SIN NÚMERO";
+        return `Puerto ${p.id}: ${num}`;
+      }
+      return `Puerto ${p.id}: LIBRE`;
+    });
+    const portsComment = commentLines.join("\n");
+
     try {
       await fetch(`/api/ctos/${cto.id}`, {
         method: "PATCH",
@@ -232,15 +252,17 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         body: JSON.stringify({
           puertosTotal: portsCapacity,
           puertosOcupados: occupiedCount,
-          formDataJson: newFormDataJson
+          formDataJson: newFormDataJson,
+          commentText: portsComment
         })
       });
       fetchCtoDetails();
     } catch (e) {
-      console.error(e);
+      console.error("Error guardando puertos:", e);
     }
 
     setShowPortsModal(false);
+    setShowVisualPortsViewer(true);
   };
 
   // Función de captura rápida y silenciosa de GPS (con fallback inmediato para no ralentizar)
@@ -1121,37 +1143,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   Antala
                 </button>
               </div>
-
-              {/* Botón Destacado: Marc. Reparo CTO */}
-              <button 
-                type="button"
-                onClick={handleMarcarReparo}
-                disabled={markingReparo}
-                className="btn" 
-                style={{ 
-                  width: "100%", 
-                  minHeight: "40px", 
-                  marginTop: "0.6rem",
-                  background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", 
-                  color: "white", 
-                  fontSize: "0.88rem", 
-                  padding: "6px 12px", 
-                  fontWeight: 800, 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center", 
-                  gap: "8px",
-                  borderRadius: "8px",
-                  boxShadow: "0 2px 5px rgba(217, 119, 6, 0.3)",
-                  opacity: markingReparo ? 0.7 : 1,
-                  cursor: markingReparo ? "wait" : "pointer"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                </svg>
-                {markingReparo ? "Registrando Reparación y GPS..." : "Marc. Reparo CTO"}
-              </button>
             </div>
 
             {/* Formulario de Auditoría */}
@@ -1186,6 +1177,34 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     </svg>
                   </button>
 
+                  {/* Icono Panel Visual de Puertos */}
+                  <button
+                    type="button"
+                    onClick={() => setShowVisualPortsViewer(true)}
+                    title="Ver Panel Visual de Puertos (CTO Virtual)"
+                    style={{
+                      background: "rgba(59, 130, 246, 0.15)",
+                      color: "#3b82f6",
+                      border: "1.5px solid #3b82f6",
+                      borderRadius: "8px",
+                      width: "38px",
+                      height: "38px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                      <circle cx="7" cy="10" r="1.5" fill="#10b981" />
+                      <circle cx="12" cy="10" r="1.5" fill="#ef4444" />
+                      <circle cx="17" cy="10" r="1.5" fill="#f59e0b" />
+                    </svg>
+                  </button>
 
                   {/* Botón Info (i de Iconoir) */}
                   <button
@@ -1629,6 +1648,37 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     <polyline points="22 4 12 14.01 9 11.01" />
                   </svg>
                   {saving ? "Guardando..." : "Cerrar y Guardar (Marcar Correcto)"}
+                </button>
+
+                {/* Botón Marc. Reparo CTO debajo de Cerrar y Guardar */}
+                <button 
+                  type="button"
+                  onClick={handleMarcarReparo}
+                  disabled={markingReparo}
+                  className="btn" 
+                  style={{ 
+                    width: "100%", 
+                    minHeight: "42px", 
+                    marginTop: "8px",
+                    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", 
+                    color: "white", 
+                    fontSize: "0.88rem", 
+                    padding: "8px 12px", 
+                    fontWeight: 800, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    gap: "8px",
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
+                    opacity: markingReparo ? 0.7 : 1,
+                    cursor: markingReparo ? "wait" : "pointer"
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                  </svg>
+                  {markingReparo ? "Registrando Reparación..." : "Marc. Reparo CTO"}
                 </button>
               </div>
 
@@ -2417,41 +2467,50 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         </div>
       )}
 
-      {/* MODAL DE GESTIÓN DE PUERTOS DE FIBRA (BOTÓN TRIÁNGULO) */}
+      {/* MODAL 1: GESTIÓN Y EDICIÓN DE PUERTOS DE FIBRA (BOTÓN TRIÁNGULO) */}
       {showPortsModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px" }}>
-          <div className="glass-panel" style={{ width: "95%", maxWidth: "700px", maxHeight: "90vh", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", borderRadius: "14px", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backdropFilter: "blur(4px)" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "720px", maxHeight: "92vh", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", borderRadius: "16px", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 15px 35px rgba(0,0,0,0.4)" }}>
             
             {/* Header */}
-            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color)" }}>
               <div>
-                <h2 style={{ fontSize: "1.15rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 19.5h20L12 2z" />
-                    <path d="M2 19.5h20" />
-                  </svg>
-                  Gestión de Puertos — CTO {cto.num}
+                <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "10px", color: "var(--text-color)" }}>
+                  <span style={{ display: "inline-flex", padding: "6px", borderRadius: "8px", background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 19.5h20L12 2z" />
+                      <path d="M2 19.5h20" />
+                    </svg>
+                  </span>
+                  Asignación de Puertos — CTO {cto.num}
                 </h2>
-                <span style={{ fontSize: "0.78rem", color: "#64748b" }}>Indica el estado individual de cada puerto de fibra óptica</span>
+                <span style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "2px", display: "block" }}>
+                  Configura el estado individual de cada puerto óptico
+                </span>
               </div>
               <button 
                 type="button" 
                 onClick={() => setShowPortsModal(false)}
-                style={{ background: "var(--border-color)", border: "none", borderRadius: "50%", width: "30px", height: "30px", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                style={{ background: "var(--border-color)", border: "none", borderRadius: "50%", width: "32px", height: "32px", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-color)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 ✕
               </button>
             </div>
 
             {/* Content */}
-            <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ padding: "18px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
               
-              {/* 1. Selector de Cantidad de Puertos */}
-              <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase", color: "var(--text-color)" }}>
-                  1. Cantidad Total de Puertos:
-                </label>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {/* 1. Selector de Cantidad de Puertos (Predeterminado 8) */}
+              <div style={{ background: "var(--bg-color)", padding: "14px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🔌</span> Cantidad Total de Puertos:
+                  </label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--primary-color)", fontWeight: 700, background: "rgba(255,121,0,0.1)", padding: "2px 8px", borderRadius: "12px" }}>
+                    Capacidad seleccionada: {portsCapacity} Puertos
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {[8, 16, 24, 32, 40, 48].map(cap => {
                     const isSel = portsCapacity === cap;
                     return (
@@ -2460,17 +2519,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         type="button"
                         onClick={() => handlePortsCapacityChange(cap)}
                         style={{
-                          flex: "1 1 50px",
-                          minHeight: "34px",
-                          padding: "6px 10px",
-                          borderRadius: "8px",
+                          flex: "1 1 55px",
+                          minHeight: "38px",
+                          padding: "6px 12px",
+                          borderRadius: "10px",
                           fontWeight: 800,
-                          fontSize: "0.85rem",
+                          fontSize: "0.9rem",
                           cursor: "pointer",
-                          border: isSel ? "2px solid var(--primary-color)" : "1px solid var(--border-color)",
+                          border: isSel ? "2px solid var(--primary-color)" : "1.5px solid var(--border-color)",
                           background: isSel ? "var(--primary-color)" : "var(--card-bg)",
                           color: isSel ? "white" : "var(--text-color)",
-                          transition: "all 0.15s"
+                          boxShadow: isSel ? "0 4px 10px rgba(255,121,0,0.3)" : "none",
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
                         }}
                       >
                         {cap} P
@@ -2480,23 +2540,30 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 </div>
               </div>
 
-              {/* 2. Resumen y Contadores */}
+              {/* 2. Resumen y Contadores de Estado */}
               {(() => {
                 const occCount = portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
                 const libCount = portsCapacity - occCount;
+                const pct = Math.round((occCount / portsCapacity) * 100) || 0;
                 return (
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "var(--bg-color)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                      <span style={{ fontSize: "0.7rem", color: "#64748b", display: "block", fontWeight: 600 }}>Total</span>
-                      <strong style={{ fontSize: "1.1rem", color: "var(--text-color)" }}>{portsCapacity}</strong>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <div style={{ flex: 1, padding: "10px", textAlign: "center", background: "var(--bg-color)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b", display: "block", fontWeight: 700 }}>TOTAL</span>
+                        <strong style={{ fontSize: "1.25rem", color: "var(--text-color)" }}>{portsCapacity}</strong>
+                      </div>
+                      <div style={{ flex: 1, padding: "10px", textAlign: "center", background: "#dcfce7", borderRadius: "10px", border: "1.5px solid #86efac", boxShadow: "0 2px 6px rgba(22,163,74,0.15)" }}>
+                        <span style={{ fontSize: "0.72rem", color: "#166534", display: "block", fontWeight: 700 }}>🟢 LIBRES</span>
+                        <strong style={{ fontSize: "1.25rem", color: "#166534" }}>{libCount}</strong>
+                      </div>
+                      <div style={{ flex: 1, padding: "10px", textAlign: "center", background: "#fee2e2", borderRadius: "10px", border: "1.5px solid #fca5a5", boxShadow: "0 2px 6px rgba(220,38,38,0.15)" }}>
+                        <span style={{ fontSize: "0.72rem", color: "#991b1b", display: "block", fontWeight: 700 }}>🔴 OCUPADOS</span>
+                        <strong style={{ fontSize: "1.25rem", color: "#991b1b" }}>{occCount}</strong>
+                      </div>
                     </div>
-                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "#dcfce7", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
-                      <span style={{ fontSize: "0.7rem", color: "#166534", display: "block", fontWeight: 600 }}>Libres</span>
-                      <strong style={{ fontSize: "1.1rem", color: "#166534" }}>{libCount}</strong>
-                    </div>
-                    <div style={{ flex: 1, padding: "8px", textAlign: "center", background: "#fee2e2", borderRadius: "8px", border: "1px solid #fecaca" }}>
-                      <span style={{ fontSize: "0.7rem", color: "#991b1b", display: "block", fontWeight: 600 }}>Ocupados</span>
-                      <strong style={{ fontSize: "1.1rem", color: "#991b1b" }}>{occCount}</strong>
+                    {/* Barra de Ocupación */}
+                    <div style={{ width: "100%", height: "8px", background: "#dcfce7", borderRadius: "4px", overflow: "hidden", border: "1px solid #bbf7d0" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #f59e0b, #ef4444)", transition: "width 0.3s ease" }} />
                     </div>
                   </div>
                 );
@@ -2504,10 +2571,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
               {/* 3. Grid de Puertos */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "8px", textTransform: "uppercase", color: "var(--text-color)" }}>
-                  2. Asignación de Puertos (1 al {portsCapacity}):
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 800, marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-color)" }}>
+                  Asignar Estado Puerto a Puerto (1 al {portsCapacity}):
                 </label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(215px, 1fr))", gap: "10px" }}>
                   {portsList.map((port, idx) => {
                     const isLibre = port.status === "LIBRE";
                     const isOcupado = port.status === "OCUPADO";
@@ -2517,88 +2584,95 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <div 
                         key={port.id} 
                         style={{ 
-                          background: "var(--bg-color)", 
-                          padding: "8px 10px", 
-                          borderRadius: "8px", 
-                          border: isOcupado ? "1.5px solid #fca5a5" : isOtro ? "1.5px solid #fde047" : isLibre ? "1.5px solid #86efac" : "1px solid var(--border-color)",
+                          background: isOcupado ? "#fff1f2" : isOtro ? "#fefce8" : "#f0fdf4", 
+                          padding: "10px 12px", 
+                          borderRadius: "12px", 
+                          border: isOcupado ? "2px solid #ef4444" : isOtro ? "2px solid #eab308" : isLibre ? "2px solid #22c55e" : "1.5px solid var(--border-color)",
                           display: "flex",
                           flexDirection: "column",
-                          gap: "6px"
+                          gap: "8px",
+                          boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+                          transition: "all 0.15s"
                         }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontWeight: 800, fontSize: "0.85rem", color: "var(--text-color)" }}>
+                          <span style={{ fontWeight: 900, fontSize: "0.92rem", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e", boxShadow: `0 0 6px ${isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e"}` }} />
                             Puerto {port.id}
                           </span>
                           <span style={{ 
-                            fontSize: "0.68rem", 
-                            fontWeight: 700, 
-                            padding: "1px 6px", 
-                            borderRadius: "10px",
+                            fontSize: "0.7rem", 
+                            fontWeight: 800, 
+                            padding: "2px 8px", 
+                            borderRadius: "12px",
                             background: isOcupado ? "#fee2e2" : isOtro ? "#fef9c3" : "#dcfce7",
-                            color: isOcupado ? "#991b1b" : isOtro ? "#854d0e" : "#166534"
+                            color: isOcupado ? "#991b1b" : isOtro ? "#854d0e" : "#166534",
+                            border: `1px solid ${isOcupado ? "#fca5a5" : isOtro ? "#fef08a" : "#bbf7d0"}`
                           }}>
-                            {isOcupado ? "OCUPADO" : isOtro ? `OTRO (${port.customNumber || "#"})` : "LIBRE"}
+                            {isOcupado ? "OCUPADO" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO #") : "LIBRE"}
                           </span>
                         </div>
 
                         {/* Botones de Estado */}
                         <div style={{ display: "flex", gap: "4px" }}>
-                          {/* Botón LIBRE (Verde suave) */}
+                          {/* Botón LIBRE */}
                           <button
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "LIBRE")}
                             style={{
                               flex: 1,
-                              padding: "4px 2px",
+                              padding: "6px 2px",
                               fontSize: "0.75rem",
-                              fontWeight: 700,
-                              borderRadius: "6px",
+                              fontWeight: 800,
+                              borderRadius: "8px",
                               cursor: "pointer",
                               border: isLibre ? "2px solid #16a34a" : "1px solid #bbf7d0",
-                              background: isLibre ? "#86efac" : "#dcfce7",
-                              color: "#166534",
-                              transition: "all 0.1s"
+                              background: isLibre ? "#22c55e" : "#dcfce7",
+                              color: isLibre ? "white" : "#166534",
+                              boxShadow: isLibre ? "0 2px 6px rgba(34,197,94,0.3)" : "none",
+                              transition: "all 0.15s"
                             }}
                           >
                             Libre
                           </button>
 
-                          {/* Botón OCUPADO (Rojo suave) */}
+                          {/* Botón OCUPADO */}
                           <button
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "OCUPADO")}
                             style={{
                               flex: 1,
-                              padding: "4px 2px",
+                              padding: "6px 2px",
                               fontSize: "0.75rem",
-                              fontWeight: 700,
-                              borderRadius: "6px",
+                              fontWeight: 800,
+                              borderRadius: "8px",
                               cursor: "pointer",
                               border: isOcupado ? "2px solid #dc2626" : "1px solid #fecaca",
-                              background: isOcupado ? "#fca5a5" : "#fee2e2",
-                              color: "#991b1b",
-                              transition: "all 0.1s"
+                              background: isOcupado ? "#ef4444" : "#fee2e2",
+                              color: isOcupado ? "white" : "#991b1b",
+                              boxShadow: isOcupado ? "0 2px 6px rgba(239,68,68,0.3)" : "none",
+                              transition: "all 0.15s"
                             }}
                           >
                             Ocupado
                           </button>
 
-                          {/* Botón OTRO (Amarillo suave) */}
+                          {/* Botón OTRO */}
                           <button
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "OTRO")}
                             style={{
                               flex: 1,
-                              padding: "4px 2px",
+                              padding: "6px 2px",
                               fontSize: "0.75rem",
-                              fontWeight: 700,
-                              borderRadius: "6px",
+                              fontWeight: 800,
+                              borderRadius: "8px",
                               cursor: "pointer",
                               border: isOtro ? "2px solid #ca8a04" : "1px solid #fef08a",
-                              background: isOtro ? "#fde047" : "#fef9c3",
-                              color: "#854d0e",
-                              transition: "all 0.1s"
+                              background: isOtro ? "#eab308" : "#fef9c3",
+                              color: isOtro ? "white" : "#854d0e",
+                              boxShadow: isOtro ? "0 2px 6px rgba(234,179,8,0.3)" : "none",
+                              transition: "all 0.15s"
                             }}
                           >
                             Otro #
@@ -2611,17 +2685,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            placeholder="Solo números..."
+                            placeholder="Número de circuito/abonado..."
                             value={port.customNumber}
                             onChange={(e) => handlePortNumberChange(idx, e.target.value)}
                             style={{
                               width: "100%",
-                              padding: "4px 8px",
-                              fontSize: "0.8rem",
-                              borderRadius: "4px",
-                              border: "1.5px solid #ca8a04",
-                              background: "var(--card-bg)",
-                              color: "var(--text-color)",
+                              padding: "6px 10px",
+                              fontSize: "0.85rem",
+                              borderRadius: "6px",
+                              border: "2px solid #eab308",
+                              background: "white",
+                              color: "#1e293b",
+                              fontWeight: 700,
                               fontFamily: "monospace"
                             }}
                           />
@@ -2633,28 +2708,28 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </div>
 
               {/* 4. Botones Rápidos de Autocompletado */}
-              <div style={{ background: "var(--bg-color)", padding: "10px 12px", borderRadius: "10px", border: "1px solid var(--border-color)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <span style={{ width: "100%", fontSize: "0.75rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
-                  Acciones Rápidas:
+              <div style={{ background: "var(--bg-color)", padding: "12px 14px", borderRadius: "12px", border: "1px solid var(--border-color)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ width: "100%", fontSize: "0.75rem", color: "#64748b", fontWeight: 800, textTransform: "uppercase" }}>
+                  ⚡ Acciones de Relleno Rápido:
                 </span>
                 <button
                   type="button"
                   onClick={handleFillAllLibre}
                   style={{
                     flex: 1,
-                    minHeight: "34px",
-                    padding: "6px 10px",
+                    minHeight: "38px",
+                    padding: "8px 12px",
                     background: "#dcfce7",
                     color: "#166534",
-                    border: "1px solid #86efac",
-                    borderRadius: "6px",
-                    fontWeight: 700,
-                    fontSize: "0.8rem",
+                    border: "1.5px solid #86efac",
+                    borderRadius: "8px",
+                    fontWeight: 800,
+                    fontSize: "0.85rem",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: "4px"
+                    gap: "6px"
                   }}
                 >
                   🟢 Completar el resto como LIBRE
@@ -2664,19 +2739,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   onClick={handleFillAllOcupados}
                   style={{
                     flex: 1,
-                    minHeight: "34px",
-                    padding: "6px 10px",
+                    minHeight: "38px",
+                    padding: "8px 12px",
                     background: "#fee2e2",
                     color: "#991b1b",
-                    border: "1px solid #fca5a5",
-                    borderRadius: "6px",
-                    fontWeight: 700,
-                    fontSize: "0.8rem",
+                    border: "1.5px solid #fca5a5",
+                    borderRadius: "8px",
+                    fontWeight: 800,
+                    fontSize: "0.85rem",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: "4px"
+                    gap: "6px"
                   }}
                 >
                   🔴 Completar el resto como OCUPADOS
@@ -2686,12 +2761,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border-color)", background: "var(--bg-color)", display: "flex", gap: "10px" }}>
+            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)", background: "var(--bg-color)", display: "flex", gap: "12px" }}>
               <button
                 type="button"
                 onClick={() => setShowPortsModal(false)}
                 className="btn"
-                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)", fontWeight: 600 }}
+                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)", fontWeight: 700 }}
               >
                 Cancelar
               </button>
@@ -2699,12 +2774,196 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 type="button"
                 onClick={handleSavePortsModal}
                 className="btn btn-primary"
-                style={{ flex: 2, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                style={{ flex: 2, fontWeight: 800, fontSize: "0.92rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Aplicar y Guardar Puertos ({portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length} Ocupados)
+                Guardar y Ver Panel ({portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length} Ocupados)
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: VENTANA VISUAL DE PUERTOS DE LA CTO (PANEL SIMULADO DE CONECTORES ÓPTICOS) */}
+      {showVisualPortsViewer && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backdropFilter: "blur(6px)" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "780px", maxHeight: "92vh", background: "#0f172a", color: "#f8fafc", border: "2px solid #334155", borderRadius: "18px", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)" }}>
+            
+            {/* Header del Panel Visual */}
+            <div style={{ padding: "16px 22px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1e293b" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "linear-gradient(135deg, #FF7900 0%, #ea580c 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(255,121,0,0.4)" }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: "1.25rem", fontWeight: 900, margin: 0, color: "white", letterSpacing: "0.3px" }}>
+                    Panel Visual de Fibra — CTO {cto.num}
+                  </h2>
+                  <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: 600 }}>
+                    Esquema óptico de distribución ({portsCapacity} Puertos SC/APC)
+                  </span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowVisualPortsViewer(false)}
+                style={{ background: "#334155", border: "none", borderRadius: "50%", width: "34px", height: "34px", fontSize: "1.2rem", fontWeight: 700, color: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chasis / Cuadro del Panel de Fibra */}
+            <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "18px" }}>
+              
+              {/* Dashboard Superior de Resumen */}
+              {(() => {
+                const occCount = portsList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
+                const libCount = portsCapacity - occCount;
+                const pct = Math.round((occCount / portsCapacity) * 100) || 0;
+
+                return (
+                  <div style={{ background: "#1e293b", padding: "14px 18px", borderRadius: "14px", border: "1px solid #334155", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                      <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 10px #22c55e" }} />
+                          <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#86efac" }}>{libCount} LIBRES</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 10px #ef4444" }} />
+                          <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fca5a5" }}>{occCount} OCUPADOS</span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 600 }}>Ocupación:</span>
+                        <strong style={{ fontSize: "1.1rem", color: pct > 80 ? "#f87171" : pct > 50 ? "#facc15" : "#4ade80" }}>{pct}%</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ width: "100%", height: "10px", background: "#0f172a", borderRadius: "5px", overflow: "hidden", border: "1px solid #334155" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #22c55e 0%, #f59e0b 50%, #ef4444 100%)", borderRadius: "5px", transition: "width 0.4s ease" }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Panel Físico Visual de Conectores */}
+              <div style={{ background: "#020617", padding: "20px", borderRadius: "16px", border: "2px solid #1e293b", boxShadow: "inset 0 4px 15px rgba(0,0,0,0.8)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", borderBottom: "1px dashed #334155", paddingBottom: "8px" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "#64748b" }}>
+                    CHASIS ADAPTADORES SC/APC (CTO-{cto.num})
+                  </span>
+                  <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 700 }}>
+                    Capacidad: {portsCapacity} Puertos
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${portsCapacity > 24 ? "70px" : "85px"}, 1fr))`, gap: "12px" }}>
+                  {portsList.map((port) => {
+                    const isLibre = port.status === "LIBRE";
+                    const isOcupado = port.status === "OCUPADO";
+                    const isOtro = port.status === "OTRO";
+
+                    const mainColor = isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e";
+                    const bgGlow = isOcupado ? "rgba(239, 68, 68, 0.15)" : isOtro ? "rgba(234, 179, 8, 0.15)" : "rgba(34, 197, 94, 0.15)";
+                    const borderCol = isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e";
+
+                    return (
+                      <div 
+                        key={port.id}
+                        style={{
+                          background: bgGlow,
+                          border: `2px solid ${borderCol}`,
+                          borderRadius: "12px",
+                          padding: "10px 6px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "6px",
+                          boxShadow: `0 4px 12px ${bgGlow}`,
+                          position: "relative",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        {/* Etiqueta Puerto */}
+                        <span style={{ fontSize: "0.72rem", fontWeight: 900, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                          P-{port.id.toString().padStart(2, '0')}
+                        </span>
+
+                        {/* Gráfico de Conector Óptico SC/APC */}
+                        <div 
+                          style={{ 
+                            width: "36px", 
+                            height: "36px", 
+                            borderRadius: "8px", 
+                            background: mainColor, 
+                            display: "flex", 
+                            alignItems: "center", 
+                            justifyContent: "center",
+                            boxShadow: `0 0 14px ${mainColor}`,
+                            border: "2px solid rgba(255,255,255,0.4)",
+                            position: "relative"
+                          }}
+                        >
+                          {/* Agujero central del conector de fibra con virola */}
+                          <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#020617", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "white", boxShadow: "0 0 4px white" }} />
+                          </div>
+                        </div>
+
+                        {/* Estado / Número de Abonado */}
+                        <span 
+                          style={{ 
+                            fontSize: "0.68rem", 
+                            fontWeight: 800, 
+                            color: mainColor,
+                            textAlign: "center",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            maxWidth: "100%",
+                            padding: "1px 4px"
+                          }}
+                          title={isOtro && port.customNumber ? `Circuito: ${port.customNumber}` : isOcupado ? "Ocupado / No Localizado" : "Libre"}
+                        >
+                          {isOcupado ? "OCUPADO" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO") : "LIBRE"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer del Panel Visual */}
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #1e293b", background: "#1e293b", display: "flex", gap: "12px" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVisualPortsViewer(false);
+                  setShowPortsModal(true);
+                }}
+                className="btn"
+                style={{ flex: 1, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", color: "white", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              >
+                ✏️ Modificar Puertos
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVisualPortsViewer(false)}
+                className="btn"
+                style={{ flex: 1, background: "#334155", color: "#f8fafc", fontWeight: 700 }}
+              >
+                Cerrar Panel
               </button>
             </div>
 
