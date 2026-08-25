@@ -7,6 +7,11 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  // Simple pass-through strategy so that the app works online
-  e.respondWith(fetch(e.request));
+  // Pass-through con captura de errores de red
+  e.respondWith(
+    fetch(e.request).catch((err) => {
+      // Fallback silencioso en caso de cancelación o fallo de red
+      return new Response("", { status: 408, statusText: "Request Timeout / Network Error" });
+    })
+  );
 });
