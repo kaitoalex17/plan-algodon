@@ -1705,7 +1705,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <circle cx="8.5" cy="8.5" r="1.5" />
                       <path d="M21 15l-5-5L5 21" />
                     </svg>
-                    <span>Galería ({images.length})</span>
+                    <span>Galería ({details?.images?.length || 0})</span>
                   </button>
                 </div>
               </div>
