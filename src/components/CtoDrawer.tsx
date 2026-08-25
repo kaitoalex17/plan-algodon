@@ -243,6 +243,23 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     setShowPortsModal(false);
   };
 
+  // Función de captura rápida y silenciosa de GPS (con fallback inmediato para no ralentizar)
+  const getQuickGpsLocation = async (): Promise<string | null> => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return null;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 4000,
+          maximumAge: 60000
+        });
+      });
+      return `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+    } catch (e) {
+      return null;
+    }
+  };
+
   const handleMarcarReparo = async () => {
     if (!cto?.id) return;
     const techName = session?.user?.name || session?.user?.email || "Técnico";
@@ -253,22 +270,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
     setMarkingReparo(true);
 
-    // Obtener geolocalización del móvil
-    let gpsLocation: string | null = null;
-    if (typeof window !== "undefined" && "geolocation" in navigator) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-          });
-        });
-        gpsLocation = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-      } catch (geoErr) {
-        console.warn("No se pudo obtener GPS para la reparación:", geoErr);
-      }
-    }
+    // Obtener geolocalización rápida en segundo plano
+    const gpsLocation = await getQuickGpsLocation();
 
     try {
       const currentUserId = (session?.user as any)?.id;
@@ -308,7 +311,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         };
         onUpdate(fullUpdatedCto);
         fetchCtoDetails();
-        alert(`✅ ¡CTO ${cto.num} marcada como REPARADA con éxito!\n\n• Estado: CORRECTO\n• Reparado por: ${techName}\n• Asignación: Sin asignar${gpsLocation ? `\n• GPS: ${gpsLocation}` : ""}`);
+        alert(`✅ ¡CTO ${cto.num} marcada como REPARADA con éxito!\n\n• Estado: CORRECTO\n• Reparado por: ${techName}\n• Asignación: Sin asignar`);
       } else {
         const errData = await res.json();
         alert(`Error al marcar como reparada: ${errData.error || "Error del servidor"}`);
@@ -692,6 +695,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const saveCto = async (targetStatus: string, targetAssignedToId: string | null, extraData: any = {}) => {
     setSaving(true);
     try {
+      // Captura silenciosa y rápida de GPS en segundo plano
+      const autoGps = extraData.location !== undefined ? extraData.location : (await getQuickGpsLocation());
+
       const res = await fetch(`/api/ctos/${cto.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -703,6 +709,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           auditDateTime: canEditAudit && auditDateTime ? auditDateTime : undefined,
           notas,
           commentText,
+          location: autoGps,
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
           puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
           potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
@@ -1032,7 +1039,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     <div style={{ fontSize: "0.82rem", color: "#16a34a", display: "flex", alignItems: "center", gap: "6px" }}>
                       <span>🛠️ <strong>Reparado por:</strong> {lastRepairLog.user?.name || "Técnico"}</span>
                       <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>({new Date(lastRepairLog.timestamp).toLocaleDateString("es-ES")})</span>
-                      {lastRepairLog.location && (
+                      {canEditAudit && lastRepairLog.location && (
                         <a 
                           href={`https://maps.google.com/?q=${lastRepairLog.location}`} 
                           target="_blank" 
@@ -1824,7 +1831,19 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {details.history.map((hist: any) => (
                     <div key={hist.id} style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8, display: "flex", justifyContent: "space-between", borderBottom: "1px dashed var(--border-color)", paddingBottom: "6px" }}>
-                      <span><strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}</span>
+                      <span>
+                        <strong>{hist.user?.name || "Sistema"}:</strong> {hist.action}
+                        {canEditAudit && hist.location && (
+                          <a 
+                            href={`https://maps.google.com/?q=${hist.location}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ marginLeft: "6px", fontSize: "0.72rem", color: "#2563eb", textDecoration: "underline" }}
+                          >
+                            📍 GPS ({hist.location})
+                          </a>
+                        )}
+                      </span>
                       <span style={{ fontSize: "0.75rem", flexShrink: 0, marginLeft: "10px" }}>
                         {new Date(hist.timestamp).toLocaleString()}
                       </span>
