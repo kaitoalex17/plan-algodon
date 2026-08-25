@@ -71,6 +71,22 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     document.body.classList.add(`theme-${theme}`);
   }, [theme]);
 
+  // Selección automática de CTO si viene especificada en la URL (ej: /?ctoId=... o /?cto=...)
+  useEffect(() => {
+    if (typeof window !== "undefined" && ctos.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const targetCtoId = params.get("ctoId");
+      const targetCtoNum = params.get("cto");
+      if (targetCtoId) {
+        const found = ctos.find(c => c.id === targetCtoId);
+        if (found) setSelectedCto(found);
+      } else if (targetCtoNum) {
+        const found = ctos.find(c => (c.num || "").toLowerCase() === targetCtoNum.toLowerCase());
+        if (found) setSelectedCto(found);
+      }
+    }
+  }, [ctos]);
+
   const handleThemeChange = async (val: string) => {
     setTheme(val);
     try {

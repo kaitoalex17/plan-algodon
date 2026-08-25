@@ -202,13 +202,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    if (assignedToId !== undefined && assignedToId !== oldCto.assignedToId) {
-      updateData.assignedToId = assignedToId;
-      if (assignedToId) {
-        const u = await prisma.user.findUnique({ where: { id: assignedToId } });
-        historyActions.push(`Asignó CTO a: ${u?.name || u?.email || 'N/A'}`);
-      } else {
-        historyActions.push("Desasignó la CTO");
+    if (assignedToId !== undefined) {
+      const targetAssigned = assignedToId && String(assignedToId).trim() !== "" ? String(assignedToId).trim() : null;
+      if (targetAssigned !== oldCto.assignedToId) {
+        updateData.assignedToId = targetAssigned;
+        if (targetAssigned) {
+          const u = await prisma.user.findUnique({ where: { id: targetAssigned } });
+          historyActions.push(`Asignó CTO a: ${u?.name || u?.email || 'N/A'}`);
+        } else {
+          historyActions.push("Desasignó la CTO (Sin asignar)");
+        }
       }
     }
 
@@ -276,10 +279,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       historyActions.push(`Modificó cluster a "${updateData.cluster || 'N/A'}"`);
     }
 
-    // Actualizar CTO en la BD
+    // Actualizar CTO en la BD con relaciones incluidas
     const updatedCto = await prisma.cTO.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        assignedTo: { select: { id: true, name: true, email: true, color: true } },
+        auditedBy: { select: { id: true, name: true, email: true, color: true } },
+        subStatus: true,
+        images: true,
+        comments: { include: { user: { select: { name: true, color: true } } }, orderBy: { createdAt: "desc" } },
+        history: { include: { user: { select: { name: true } } }, orderBy: { timestamp: "desc" } }
+      }
     });
 
     // Guardar comentario si se proporcionó

@@ -84,28 +84,53 @@ export async function GET(req: NextRequest) {
           numeroNuevo: log.cto.numeroNuevo,
           cluster: log.cto.cluster || "N/A",
           zona: log.cto.zona || "N/A",
+          municipio: log.cto.municipio || "N/A",
           status: log.cto.status,
+          subStatusId: log.cto.subStatusId,
           subStatusName: log.cto.subStatus?.name || "Sin Subestado",
           subStatusColor: log.cto.subStatus?.color || "#808080",
+          category: log.cto.category || "AUDITORIA",
           lat: log.cto.lat,
           lng: log.cto.lng,
           coordenadas: log.cto.coordenadas,
           auditor: log.cto.auditedBy?.name || log.user?.name || log.user?.email || "Sistema",
+          auditorId: log.cto.auditedBy?.id || log.user?.id || "",
+          assignedTo: log.cto.assignedTo?.name || log.cto.assignedTo?.email || "Sin asignar",
+          assignedToId: log.cto.assignedTo?.id || "",
+          hasFormulario: !!log.cto.hasFormulario,
+          hasDrive: !!log.cto.hasDrive,
+          hasAntala: !!log.cto.hasAntala,
+          puertosTotal: log.cto.puertosTotal,
+          puertosOcupados: log.cto.puertosOcupados,
           auditTime,
           auditDate,
           rawDate: recordMadridDateIso,
-          timestamp: log.timestamp.getTime()
+          timestamp: log.timestamp.getTime(),
+          ctoRaw: log.cto
         });
       }
     }
 
     const auditedList = Array.from(auditedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
 
+    // Obtener listas de usuarios y subestados para filtros de administración
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true, color: true },
+      orderBy: { name: "asc" }
+    });
+
+    const allSubStatuses = await prisma.subStatus.findMany({
+      select: { id: true, name: true, color: true, category: true },
+      orderBy: { name: "asc" }
+    });
+
     return NextResponse.json({
       startDate: startDateIso,
       endDate: endDateIso,
       count: auditedList.length,
-      ctos: auditedList
+      ctos: auditedList,
+      users: allUsers,
+      subStatuses: allSubStatuses
     });
   } catch (error: any) {
     console.error("Error generating period summary:", error);

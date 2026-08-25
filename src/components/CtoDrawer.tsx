@@ -89,7 +89,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [commentText, setCommentText] = useState("");
   
   // Nuevos campos de auditoría de fibra
-  const [puertosTotal, setPuertosTotal] = useState<number | string>(16);
+  const [puertosTotal, setPuertosTotal] = useState<number | string>(8);
   const [puertosOcupados, setPuertosOcupados] = useState<number | string>(0);
   const [potenciaDbm, setPotenciaDbm] = useState<number | string>("");
   const [cierreSeguridad, setCierreSeguridad] = useState(true);
@@ -458,7 +458,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setAuditDateTime(initialAuditDateTime);
 
         // Cargar nuevos campos de fibra
-        setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 16);
+        setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 8);
         setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
         setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
         setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
@@ -1017,7 +1017,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
             <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>
               CTO: {cto.num}
               <span style={{ fontSize: "0.85rem", fontWeight: 600, opacity: 0.8, color: "var(--text-color)", display: "block", marginTop: "4px" }}>
-                👤 {details?.assignedTo ? `Asignada a: ${details.assignedTo.name || details.assignedTo.email}` : (cto.assignedTo ? `Asignada a: ${cto.assignedTo.name || cto.assignedTo.email}` : "Sin asignar")}
+                👤 {assignedToId ? (users.find(u => u.id === assignedToId)?.name || details?.assignedTo?.name || cto.assignedTo?.name || "Asignada") : "Sin asignar"}
               </span>
             </h2>
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
