@@ -1015,6 +1015,22 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   };
 
+  const handleShareWhatsApp = () => {
+    if (typeof window === "undefined") return;
+    const shareUrl = `${window.location.origin}/?ctoId=${cto.id}`;
+    const muni = cto.municipio ? ` (${cto.municipio})` : "";
+    const text = `📍 *CTO ${cto.num}*${muni}\n📌 Estado: ${status}\n🔗 *Abrir en Plan Algodón:* ${shareUrl}`;
+    
+    // Copiar enlace al portapapeles
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).catch(() => {});
+    }
+
+    // Abrir WhatsApp con el mensaje preformateado
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
   const openGoogleMaps = () => {
     window.open(`https://maps.google.com/?q=${cto.lat},${cto.lng}`, "_blank");
   };
@@ -1070,13 +1086,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </span>
             </div>
           </div>
-          <span style={{ 
-            padding: "6px 14px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: 700,
-            background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#f3f4f6",
-            color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#374151"
-          }}>
-            {displayStatus}
-          </span>
+          
+          {/* Lado derecho de cabecera: Botón Compartir por WhatsApp + Badge de Estado */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "38px" }}>
+            <button
+              type="button"
+              onClick={handleShareWhatsApp}
+              title="Compartir CTO por WhatsApp / Copiar Enlace Directo"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: "#25D366",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(37, 211, 102, 0.35)",
+                transition: "all 0.15s"
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </button>
+
+            <span style={{ 
+              padding: "6px 14px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: 700,
+              background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#f3f4f6",
+              color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#374151"
+            }}>
+              {displayStatus}
+            </span>
+          </div>
         </div>
 
         {loading ? (
@@ -1556,28 +1604,34 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {/* Botón 1: Cámara con icono y texto claro "Cámara" */}
                   <label 
                     className="btn" 
                     style={{ 
-                      width: "48px", 
-                      height: "40px", 
-                      flexShrink: 0,
-                      background: "var(--bg-color)", 
-                      color: "var(--text-color)", 
-                      border: "1px solid var(--border-color)", 
+                      flex: "1 1 110px", 
+                      minHeight: "42px", 
+                      padding: "6px 12px",
+                      background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", 
+                      color: "white", 
+                      border: "none", 
                       cursor: "pointer", 
                       display: "inline-flex", 
                       justifyContent: "center", 
                       alignItems: "center",
-                      borderRadius: "8px"
+                      gap: "6px",
+                      borderRadius: "8px",
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                      boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)"
                     }}
-                    title="Tomar Foto con Cámara"
+                    title="Tomar Foto directamente con la Cámara"
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                       <circle cx="12" cy="13" r="4" />
                     </svg>
+                    <span>{uploading ? "Subiendo..." : "Cámara"}</span>
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -1588,15 +1642,32 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     />
                   </label>
 
-                  <label className="btn" style={{ flex: 2, background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", cursor: "pointer", display: "inline-flex", minHeight: "40px", padding: "6px 12px", fontSize: "0.85rem", justifyContent: "center", alignItems: "center" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
-                      {uploading ? "Subiendo..." : "Subir Fotos"}
-                    </span>
+                  {/* Botón 2: Subir Fotos */}
+                  <label 
+                    className="btn" 
+                    style={{ 
+                      flex: "1.3 1 130px", 
+                      background: "var(--bg-color)", 
+                      color: "var(--text-color)", 
+                      border: "1.5px solid var(--border-color)", 
+                      cursor: "pointer", 
+                      display: "inline-flex", 
+                      minHeight: "42px", 
+                      padding: "6px 12px", 
+                      fontSize: "0.85rem", 
+                      fontWeight: 700,
+                      justifyContent: "center", 
+                      alignItems: "center",
+                      borderRadius: "8px",
+                      gap: "6px"
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span>{uploading ? "Subiendo..." : "Subir Fotos"}</span>
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -1606,15 +1677,27 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       onChange={handleImageUpload} 
                     />
                   </label>
+
+                  {/* Botón 3: Galería */}
                   <button
                     type="button"
                     onClick={() => setShowGallery(true)}
                     className="btn"
                     style={{
-                      flex: 1, background: "var(--border-color)", color: "var(--text-color)",
-                      border: "none", borderRadius: "8px", minHeight: "40px", padding: "6px 12px",
-                      fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "center",
-                      gap: "4px", cursor: "pointer"
+                      flex: "1 1 100px", 
+                      background: "var(--border-color)", 
+                      color: "var(--text-color)",
+                      border: "none", 
+                      borderRadius: "8px", 
+                      minHeight: "42px", 
+                      padding: "6px 12px",
+                      fontSize: "0.85rem", 
+                      fontWeight: 700,
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "center",
+                      gap: "6px", 
+                      cursor: "pointer"
                     }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1622,7 +1705,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <circle cx="8.5" cy="8.5" r="1.5" />
                       <path d="M21 15l-5-5L5 21" />
                     </svg>
-                    Galería
+                    <span>Galería ({images.length})</span>
                   </button>
                 </div>
               </div>

@@ -329,6 +329,55 @@ export default function GestionDashboard() {
               </p>
             </div>
           </Link>
+
+          {/* Card 4: Control de Cierres Cruzados */}
+          <Link href="/admin/cross-audits" style={{ textDecoration: "none" }}>
+            <div style={{
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "16px",
+              padding: "2rem",
+              cursor: "pointer",
+              transition: "transform 0.2s, background 0.2s, border-color 0.2s",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-4px)";
+              e.currentTarget.style.background = "#243249";
+              e.currentTarget.style.borderColor = "#a855f7";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.background = "#1e293b";
+              e.currentTarget.style.borderColor = "#334155";
+            }}
+            >
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "10px",
+                background: "rgba(168, 85, 247, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#a855f7"
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                </svg>
+              </div>
+              <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.2rem", fontWeight: 800, color: "white" }}>
+                Control de Cierres Cruzados
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: "1.4" }}>
+                Supervisa al final del día qué CTOs fueron cerradas, reparadas o auditadas por un técnico diferente al que estaban asignadas originalmente.
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Footer */}

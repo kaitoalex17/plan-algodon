@@ -244,6 +244,12 @@ export default function AdminPage() {
               </svg>
               📅 Informe por Período de Auditoría
             </Link>
+            <Link href="/admin/cross-audits" className="btn" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1.5px solid #3b82f6', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 700 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+              </svg>
+              🔄 Control de Cierres Cruzados / Reasignaciones
+            </Link>
 
             {/* BOTÓN NUEVO DE AJUSTES UNIFICADOS */}
             <Link href="/admin/settings" className="btn" style={{ background: 'rgba(249,115,22,0.1)', color: 'var(--primary-color)', border: '1.5px solid var(--primary-color)', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 700 }}>
